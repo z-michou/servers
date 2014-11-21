@@ -20,35 +20,38 @@ SRAM_ADDR_MAX = 8192 - 1 #XXX HACK ALERT! This should be imported from other mod
 
 class JumpEntry(object):
     """A single entry in the jump table"""
+
     def __init__(self, fromAddr, toAddr, operation=None):
         self.fromAddr = fromAddr
         self.toAddr = toAddr
         self.operation = operation
-    
+
     def getToAddr(self):
         return self._toAddr
+
     def setToAddr(self, addr):
         if SRAM_ADDR_MIN <= addr and addr <= SRAM_ADDR_MAX:
             self._toAddr = addr
         else:
             raise RuntimeError("Must have %s <= toAddr <= %s"%(SRAM_ADDR_MIN, SRAM_ADDR_MAX))
     toAddr = property(getToAddr, setToAddr)
-    
+
     def getFromAddr(self):
         return self._fromAddr
+
     def setFromAddr(self, addr):
         if SRAM_ADDR_MIN <= addr and addr <= SRAM_ADDR_MAX:
             self._fromAddr = addr
         else:
             raise RuntimeError("Must have %s <= fromAddr <= %s"%(SRAM_ADDR_MIN, SRAM_ADDR_MAX))
     fromAddr = property(getFromAddr, setFromAddr)
-    
+
     def __str__(self):
         fromAddrStr = "fromAddr: %d"%self.fromAddr
         toAddrStr = "toAddr: %d"%self.toAddr
         opStr = str(self.operation)
         return '\n'.join([fromAddrStr, toAddrStr, opStr])
-    
+
     def asBytes(self):
         data = np.zeros(8,dtype='<u1')
         data[0:3] = littleEndian(self.fromAddr, 3)
@@ -56,39 +59,44 @@ class JumpEntry(object):
         data[6:8] = littleEndian(self.operation.asBytes(), 2)
         return data
 
+
 # Operations (ie op codes)
-        
+
 class Operation(object):
     """A Super class for all possible jump table operations"""
+
     def getJumpIndex(self):
         return self._jumpIndex
+
     def setJumpIndex(self, idx):
         if JUMP_INDEX_MIN < idx and idx < JUMP_INDEX_MAX:
             self._jumpIndex = idx
         else:
             raise RuntimeError("Must have %s < jump index < %s"%(JUMP_INDEX_MIN, JUMP_INDEX_MAX))
     jumpIndex = property(getJumpIndex, setJumpIndex)
-    
+
     def __str__(self):
         raise NotImplementedError
-    
+
     def asBytes(self):
         """Override in subclass"""
         raise NotImplementedError
 
+
 class IDLE(Operation):
     """Wraps the IDLE jump table op code"""
-    
+
     NAME = "IDLE"
-    
+
     def __init__(self, cycles):
         self._cycles = cycles
-    
+
     def getJumpIndex(self):
         raise RuntimeError('IDLE does not support jump table indexing')
+
     def setJumpIndex(self, idx):
         raise RuntimeError('IDLE does not support jump table indexing')
-    
+
     def getCycles(self):
         return self._cycles
     def setCycles(self, cycles):
