@@ -48,7 +48,7 @@ Jump Table Index | Opcode | toAddress | fromAddress | Comment
 2 | `0400` | `000000` | `000020` | Same as above: the SRAM pointer will idle at address 0x21 for 512+1 cycles.
 3 | `0007` | `000000` | `000050` | End at address 0x52.
  | | | | To work as a spin echo, the SRAM should contain a pi/2 pulse from 0x07 to 0x10, nothing (or a detuning) for 0x11 (which is held during the idle), a pi pulse for 0x12 to 0x20, nothing again for 0x21, and a pi/2 and readout for addresses 0x22 through 0x52. (A true spin echo would have the two delays equal, of course.)
- ** All operations ** | | | |
+ **All operations** | | | |
  0 | `0005` | `000003` | `000003` | Start at address 3.
  1 | `0129` | `000007` | `000010` | `0x0129 = 0b00000001 00101001` CHECK if daisychain bit 2 (0b0010) is 1. If so, jump SRAM pointer to 7 and JT pointer to 1 (this command again). If not, proceed to next jump table entry.
  2 | `0213` | `000028` | `000030` | `0x0213 = 0b00000010 00010011` CYCLE counter #1, going back to SRAM address 0x28 and JT index 2 (this operation) each time. When cycle completes, advance to next operation.
