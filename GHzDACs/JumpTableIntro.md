@@ -120,6 +120,27 @@ Byte Index (0-indexed) | Name | Description
 ... | | 
 1022-1025 | sram(255)[0-3] | SRAM word at address + 255
 
+# Register Write
+
+The register write is how you make the board do stuff, i.e. run the JT and SRAM. This *has* changed from the previous version.
+
+Byte Index (0-indexed) | Name | Description
+-----------------------|------|------------
+0 | start | 0 = no start, 1 = master start SRAM, 2 = test mode, 3 = slave, start on daisy chain. 1 or 3 clears the SRAM count (?)
+1 | readback | 0 = no readback, 1 = readback registers after 2 us, 2 = readback after I2C is done (?)
+2-12 | I2C stuff | (see documentation)
+13-14 | numcycles | number of master SRAM starts (2 bytes)
+15-16 | cycledelay | Delay before each start, in us.
+17 | JindexA | JT index A. Will count number of times this JT index is called.
+18 | JindexB | JT index B. Will count number of times this JT index is called.
+43-44 | startdelay | SRAM start delay after daisy chain pulse (2 bytes) (compensate for cable delay)
+45 | sync | (see documentation)
+46 | ABclock | clock polarity (?)
+47-50 | serial | (see documentation)
+51 | Mon1 | set Mon1 output
+52 | Mon2 | set Mon2 output
+53-55 | spare | not used
+
 # Questions
 
 * The JT operation is actually executed at fromAddress + 1. Does this mean that JT index 2 in the final example will cycle between 0x28 and 0x31, actually? And the JUMP operation (3) will jump from 0x41 to 0x48?
