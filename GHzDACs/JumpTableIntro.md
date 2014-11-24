@@ -3,6 +3,8 @@ This is a beginner's documentation for the jump table version of the DACs.
 
 *Remember: 8 bits to one byte, 4 bytes to a word, 256 words to a derp.*
 
+The word "derp" is used instead of "page" because "page" used to refer to a completely unrelated construct in how the FPGA server handled pipelining. That said, "derp" isn't very descriptive and should probably be changed to something like "sentence" or "paragraph".
+
 You can think of the DACs as serving one basic function: you give it a (digital) waveform, and then it plays it out (analog). The pre-jump table version of the DACs had two separate types of commands you could issue: "SRAM write", which defines the waveform (in the SRAM memory); and "memory", which defines the control sequences that play the SRAM. The memory commands were limited to fairly basic operations, such as start, stop, repeat, and wait--it was not possible to have branching code.
 
 The jump table is a replacement for the memory commands that allows for much more complex control. The jump table commands form their own mini-programming language, which contains branching (if-thens) and subroutines (in the form of jumps), as well as the ability to read output from the ADC on the daisy chain.
