@@ -145,3 +145,5 @@ Byte Index (0-indexed) | Name | Description
 
 * The JT operation is actually executed at fromAddress + 1. Does this mean that JT index 2 in the final example will cycle between 0x28 and 0x31, actually? And the JUMP operation (3) will jump from 0x41 to 0x48?
 * Can the start operation be something other than a NOP?
+* Is it possible to *just* run the SRAM through th eregister, like previous versions?
+ * Or must we always use the JT?
