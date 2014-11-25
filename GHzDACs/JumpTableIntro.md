@@ -22,9 +22,9 @@ There are now two pointers that can be manipulated:
 
 # Jump Table Operations
 
-Let's make this concrete by enumerating the allowed jump table operations. Each jump table operation is given by a two byte operation code (opcode), as well as two three-byte SRAM addresses, the fromAddress and toAddress. The first byte of the opcode, Byte 0, is commonly devoted to a jump table index. The second byte, Byte 1, gives the command and (possibly) arguments to it. The encoding used below is copied from John's documentation; for example, `xxjjjjjj` means the first two bits `x` are ignored, while the six bits `j` form a single number, the use of which is given in the description. For details of actually defining the jump table, see the section "Jump Table Write" below.
+Let's make this concrete by enumerating the allowed jump table operations. Each jump table operation is given by a two byte operation code (opcode), as well as two three-byte SRAM addresses, the fromAddress and toAddress. The first byte of the opcode, Byte 0, gives the command and (possibly) arguments to it. The second byte, Byte 1, is commonly devoted to a jump table index. (NB: everything is little endian. "First byte" means least significant byte.) The encoding used below is copied from John's documentation; for example, `xxjjjjjj` means the first two bits `x` are ignored, while the six bits `j` form a single number, the use of which is given in the description. For details of actually defining the jump table, see the section "Jump Table Write" below.
 
- Name |   Byte 0   |   Byte 1   | Description
+ Name |   Byte 1   |   Byte 0   | Description
 ------|------------|------------|-------------
 IDLE  | `dddddddd` | `ddddddd0` | Wait for n+1 cycles, with n defined by the fifteen bits `d`. SRAM pointer will remain at fromAddress+1.
 NOP   | `xxxxxxxx` | `xxxx0101` | Null operation: move both the SRAM pointer and the jump table pointer forward by one.
