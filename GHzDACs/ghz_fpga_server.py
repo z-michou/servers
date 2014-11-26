@@ -1627,14 +1627,14 @@ class FPGAServer(DeviceServer):
         """
         if not len(data):
             return
-        
-        if loop:
-            # make sure data is at least 20 words long by repeating it
-            data *= (20-1)/len(data) + 1
-        else:
-            # Set data at least 20 words long by repeating first value
+
+        if len(data) < 20:
+            # pad out to 20 with zeros
+            d2 = np.zeros(20)
+            d2[0:len(data)] = data
+            data = d2
             data = list(data) + [data[0]] * (20-len(data))
-        
+
         dev = self.selectedDAC(c)
         yield dev.runSram(data, loop, blockDelay)
     
@@ -1851,7 +1851,12 @@ class FPGAServer(DeviceServer):
         cmd, shift = dac.DAC.getCommand({'A': (2, 0), 'B': (3, 14)}, chan)
         dev = self.selectedDAC(c)
         ans = yield dev.runBIST(cmd, shift, data)
-        returnValue(ans)
+        # This is coming back with 64-bit ints, the coercing of which needs to be fixed in pylabrad
+        # for now we manually cast to 32-bit (long)
+        # See pylabrad github issue #43
+        returnValue((ans[0],
+                    [long(x) for x in ans[1]], [long(x) for x in ans[2]], [long(x) for x in ans[3]],
+                     ))
     
     @setting(1300, 'DAC Bringup', lvdsOptimize='b', lvdsSD='w', signed='b',
              targetFifo='w',

@@ -71,7 +71,7 @@ class Operation(object):
         return self._jumpIndex
 
     def setJumpIndex(self, idx):
-        if JUMP_INDEX_MIN < idx and idx < JUMP_INDEX_MAX:
+        if JUMP_INDEX_MIN <= idx <= JUMP_INDEX_MAX:
             self._jumpIndex = idx
         else:
             raise RuntimeError("Must have %s < jump index < %s" % (JUMP_INDEX_MIN, JUMP_INDEX_MAX))
@@ -310,7 +310,7 @@ def testNormal(stopAddr):
     """
     waveform = np.zeros(256)
     waveform[4:12] = 0.8
-    waveform[20:24] = 0.8
+    waveform[20:24] = 0.3
 
     jumpEntries = []
 
@@ -323,7 +323,7 @@ def testNormal(stopAddr):
     table = JumpTable(0)
     table.jumps = jumpEntries
 
-    return waveform, table
+    return waveform * 2**14, table
 
 
 def testIdle(cycles):
@@ -359,13 +359,13 @@ def testIdle(cycles):
     # End execution
     op = END()
     fromAddr = 12
-    toAddr = 0  #Meaningless?
+    toAddr = 0  # Meaningless?
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
     table = JumpTable(0)
     table.jumps = jumpEntries
 
-    return waveform, table
+    return waveform * 2**14, table
 
 
 def testJump():
@@ -399,4 +399,4 @@ def testJump():
     table = JumpTable(0)
     table.jumps = jumpEntries
 
-    return waveform, table
+    return waveform * 2**14, table

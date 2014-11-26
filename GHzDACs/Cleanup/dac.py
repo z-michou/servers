@@ -168,10 +168,10 @@ class DAC(fpga.FPGA):
     @classmethod
     def regSerial(cls, op, data):
         regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
-        regs[0] = 0  #Start mode = no start
-        regs[1] = 1  #Readback = readback after 2us to allow for serial
-        regs[47] = op  #Set serial operation mode to op
-        regs[48:51] = littleEndian(data, 3)  #Serial data
+        regs[0] = 0  # Start mode = no start
+        regs[1] = 1  # Readback = readback after 2us to allow for serial
+        regs[47] = op  # Set serial operation mode to op
+        regs[48:51] = littleEndian(data, 3)  # Serial data
         return regs
 
     @classmethod
@@ -878,7 +878,7 @@ class DAC_Build7(DAC):
             data += [0] * (20 - len(data))
             data = np.array(data, dtype='<u4').tostring()
             yield self._sendSRAM(data)
-            startAddr, endAddr = 0, len(data) / 4
+            startAddr, endAddr = 0, len(data) // 4
             yield self._runSerial(cmd, [0x0004, 0x1107, 0x1106])
 
             pkt = self.regRunSram(startAddr, endAddr, loop=False)
@@ -894,6 +894,9 @@ class DAC_Build7(DAC):
                        (bist[i + 2] << 16) + (bist[i + 1] << 24)
                        for i in [0, 5, 10, 15]]
             lvds, fifo = tuple(reading[0:2]), tuple(reading[2:4])
+
+            print "bist = ", bist
+            print "reading = ", reading
 
             # lvds and fifo may be reversed.  This is okay
             lvds = lvds[::-1] if lvds[::-1] == theory else lvds
@@ -1043,11 +1046,12 @@ class DAC_Build13(DAC_Build11):
         p.write(jtObj.toString())
 
     def initPLL(self):
-        raise NotImplementedError
+        yield self._runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
+        yield self._sendRegisters(self.regRunSimple())
 
     # extensions to board communication
     def _sendJumpTable(self, jtObj):
-        """Write SRAM data to the FPGA."""
+        """Write jump table data to the FPGA."""
         p = self.makePacket()
         self.makeJumpTable(jtObj, p)
         p.send()
@@ -1055,18 +1059,13 @@ class DAC_Build13(DAC_Build11):
     def runSram(self, dataIn, loop, blockDelay):
         @inlineCallbacks
         def func():
-            pkt = self.regPing()
-            yield self._sendRegisters(pkt)
-
+            yield self._sendRegisters(self.regPing())
             data = np.array(dataIn, dtype='<u4').tostring()
             yield self._sendSRAM(data)
-            startAddr, endAddr = 0, len(data) / 4
-
+            startAddr, endAddr = 0, len(data) // 4
             jt = jumpTable.jtRunSram(startAddr, endAddr, loop)
             yield self._sendJumpTable(jt)
-            regs = self.regRunSimple()
-
-            yield self._sendRegisters(regs, readback=False)
+            yield self._sendRegisters(self.regRunSimple(), readback=False)
 
         return self.testMode(func)
 
@@ -1075,7 +1074,7 @@ class DAC_Build13(DAC_Build11):
         This is rewritten from the non-JT version because we can no longer
         run the SRAM directly with a register write.
         :param cmd: serial operation to run.
-        :param shift: bit shift SRAM data by this amount
+        :param shift: bit shift SRAM data by this amount (e.g. 14 for DAC B)
         :param dataIn: input SRAM data
         :return: (bool--checksums match?, checksum, lvds, fifo)
         """
@@ -1084,9 +1083,8 @@ class DAC_Build13(DAC_Build11):
         def func():
             # do nothing run
             jt = jumpTable.jtRunSram(0, 0, loop=False)
-            reg = self.regRunSimple()
             yield self._sendJumpTable(jt)
-            yield self._sendRegisters(reg, readback=False)
+            yield self._sendRegisters(self.regRunSimple(), readback=False)
 
             # serial run?
             dat = [d & 0x3FFF for d in dataIn]
@@ -1098,7 +1096,7 @@ class DAC_Build13(DAC_Build11):
             yield self._runSerial(cmd, [0x0004, 0x1107, 0x1106])
 
             # JT run
-            startAddr, endAddr = 0, len(data) / 4
+            startAddr, endAddr = 0, len(data) // 4
             jt = jumpTable.jtRunSram(startAddr, endAddr, loop=False)
             yield self._sendJumpTable(jt)
             yield self._sendRegisters(self.regRunSimple(), readback=False)
@@ -1113,6 +1111,8 @@ class DAC_Build13(DAC_Build11):
             reading = [(bist[i + 4] << 0) + (bist[i + 3] << 8) +
                        (bist[i + 2] << 16) + (bist[i + 1] << 24)
                        for i in [0, 5, 10, 15]]
+            print "bist = ", bist
+            print "reading = ", reading
             lvds, fifo = tuple(reading[0:2]), tuple(reading[2:4])
 
             # lvds and fifo may be reversed.  This is okay
