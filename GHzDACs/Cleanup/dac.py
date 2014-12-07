@@ -865,7 +865,13 @@ class DAC_Build7(DAC):
         return self.testMode(func)
 
     def runBIST(self, cmd, shift, dataIn):
-        """Run a BIST on the given SRAM sequence. (DAC only)"""
+        """
+
+        :param cmd: 2 or 3
+        :param shift: 0 or 14, i.e. whether to use DAC A or B
+        :param dataIn: SRAM data to use with BIST (random)
+        :return:
+        """
 
         @inlineCallbacks
         def func():
@@ -972,22 +978,26 @@ class DAC_Build13(DAC_Build11):
     # resetPll -- OK
 
     @classmethod
-    def regRun(cls, reps, page, slave, delay, blockDelay=None, sync=249):
+    def regRun(cls, reps, page, slave, delay, blockDelay=None, sync=0):
         # TODO: probably get rid of page, blockDelay
         regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
         # old version of slave: 0 = master, 1 = slave, 3 = idle (bit 43)
         # new version: 0 = idle, 1 = master, 2 = test, 3 = slave (bit 0)
         if slave == 0:
-            slave = 1
+            start = 1
         elif slave == 1:
-            slave = 3
+            start = 3
         elif slave == 3:
-            slave = 0
-        regs[0] = slave
+            start = 0
+        regs[0] = start
         regs[1] = 0  # TODO: what kind of readback do we want?
         regs[13:15] = littleEndian(reps, 2)
         regs[43:45] = littleEndian(int(delay), 2)
         regs[45] = sync
+        regs[17] = 0  # Which jump table to count activations of
+        regs[51] = 2  # Monitor 0
+        regs[52] = 2  # Monitor 1
+
         return regs
 
     @classmethod

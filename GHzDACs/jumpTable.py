@@ -18,6 +18,7 @@ SRAM_ADDR_MAX = 8192 - 1  # XXX HACK ALERT! This should be imported from other m
 
 # A single entry in the jump table
 
+
 class JumpEntry(object):
     """A single entry in the jump table"""
 
@@ -141,7 +142,7 @@ class CHECK(Operation):
 
     def asBytes(self):
         # Op code is 001, so shift 4 bits and add 1
-        return self.jumpIndex << 8 + self.whichDaisyBit << 4 + int(self.bitOnOff) << 3 + 1
+        return (self.jumpIndex << 8) + (self.whichDaisyBit << 4) + (int(self.bitOnOff) << 3) + 1
 
 
 class JUMP(Operation):
@@ -155,7 +156,7 @@ class JUMP(Operation):
 
     def asBytes(self):
         # Op code is 1101 = 13
-        return self.jumpIndex << 8 + 13
+        return (self.jumpIndex << 8) + 13
 
 
 class NOP(Operation):
@@ -169,23 +170,26 @@ class NOP(Operation):
 
 
 class CYCLE(Operation):
-    def __init__(self, count, nextJumpIndex):
-        self.count = count
-        self.jumpIndex = nextJumpIndex
+    NAME = "CYCLE"
 
-    def getWhichCounter(self):
+    def __init__(self, counter, nextJumpIndex):
+        self.jumpIndex = nextJumpIndex
+        self._whichCounter = 0
+        self.whichCounter = counter
+
+    @property
+    def whichCounter(self):
         return self._whichCounter
 
-    def setWhichCounter(self, whichCounter):
-        if 0 <= whichCounter and whichCount < NUM_COUNTERS:
+    @whichCounter.setter
+    def whichCounter(self, whichCounter):
+        if 0 <= whichCounter < NUM_COUNTERS:
             self._whichCounter = whichCounter
         else:
             raise RuntimeError("Must have %s < whichCounter < %s" % (0, NUM_COUNTERS))
 
-    whichCounter = property(getWhichCounter, setWhichCounter)
-
     def asBytes(self):
-        return self.jumpIndex << 8 + self.whichCounter << 4 + 3
+        return (self.jumpIndex << 8) + (self.whichCounter << 4) + 3
 
 
 class END(object):
@@ -209,14 +213,17 @@ class JumpTable(object):
     PACKET_LEN = 528
     COUNT_MAX = 2 ** 32 - 1  # 32 bit register for counters
 
-    def __init__(self, startAddr=None, jumps=None):
+    def __init__(self, startAddr=None, jumps=None, counters=None):
         """
 
         :param startAddr: start address
         :param jumps:
         """
         self._startAddr = 0
-        self._counters = [0, 0, 0, 0]
+        if counters is None:
+            self._counters = [0, 0, 0, 0]
+        else:
+            self._counters = list(counters)[0:4]
         self.startAddr = startAddr
         self.jumps = jumps
 
@@ -303,14 +310,16 @@ def testNormal(stopAddr):
     of this.1
     
     We observe in this case that if we specify 1 repetition, the system instead
-    executes many times. Why?
+    executes many times. Why? -- this is no longer the case??
     
     If stopAddr==3
     ???
     """
     waveform = np.zeros(256)
-    waveform[4:12] = 0.8
-    waveform[20:24] = 0.3
+    waveform[4:40] = 0.2
+    waveform[40:44] = 0.1
+    waveform[44:48] = 0.4
+    waveform[48:60] = 0.3
 
     jumpEntries = []
 
@@ -345,8 +354,8 @@ def testIdle(cycles):
     followed by a 4ns pulse. The system should then idle with zeros.
     """
     waveform = np.zeros(256)
-    waveform[24:28] = 0.8
-    waveform[44:48] = 0.8
+    waveform[24:28] = 0.3
+    waveform[44:48] = 0.2
 
     jumpEntries = []
 
@@ -381,22 +390,44 @@ def testJump():
     """
     waveform = np.zeros(256)
     waveform[24:28] = 0.8
-    waveform[44:48] = 0.8
+    waveform[44:48] = np.linspace(0.8, 0.5, 4)
 
     jumpEntries = []
 
     # Jump at 6th SRAM cell
     op = JUMP(2)
-    fromAddr = 6
+    fromAddr = 5
     toAddr = 11
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
     op = END()
-    fromAddr = 13
+    fromAddr = 60
     toAddr = 0
     jumpEntries.append(JumpEntry(fromAddr, toAddr, op))
 
     table = JumpTable(0)
     table.jumps = jumpEntries
 
+    return waveform * 2**14, table
+
+
+def testCycle(num_cycles):
+    waveform = np.zeros(256)
+    waveform[10:20] = 0.8
+    waveform[40:50] = np.linspace(0, 0.3, 10)
+    waveform[50:60] = np.linspace(0.3, 0, 10)
+    waveform[100:110] = np.linspace(1.0, 0.7, 10)
+    waveform[110:120] = np.linspace(0.7, 1.0, 10)
+
+    jumpEntries = [
+        JumpEntry(56//4, 40//4, CYCLE(0, 1)),  # cycle: go back to 40, JT index 1, until count passed (i.e. repeat 40-60)
+        JumpEntry(72//4, 100//4, JUMP(3)),      # jump, just for fun
+        JumpEntry(120//4, 0, JUMP(4)),           # back to beginning to finish
+        JumpEntry(20//4, 0, END())
+    ]
+    # note that we can't move the first jump any earlier than 72//4 = 18, because 56//4 = 14 and fromAddrs must be
+    # separated by at least 4
+
+    table = JumpTable(0, counters=[num_cycles, num_cycles, num_cycles, num_cycles])
+    table.jumps = jumpEntries
     return waveform * 2**14, table
