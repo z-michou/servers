@@ -70,17 +70,21 @@ To do this, we can use ph.pulses and the jtAlg.waveform methods:
     jtAlg.waveform('TIME')
     ph.pulses(jtAlg)
 
-
-
     # SRAM data
     jtAlg.waveform('SRAM')
     ph.pulses(jtAlg)
 
-
-
 ## ADC Readout windows and emulating the jump table
-One of the funny things that is going on behind the scenes here is telling the ADC when to demodulate. To do this, jumpTableCompiler effectively emulates the DAC boards as they go through the experiment when compile() is called to figure out the precise timing. 
+One of the funny things that is going on behind the scenes here is telling the ADC when to demodulate. To do this, jumpTableCompiler effectively emulates the DAC boards as they go through the experiment when compile() is called to figure out the precise timing. (It also needs to emulate the DAC timing to figure out qubit phases, more on this later). 
 
 ## Phases
-### Phases in loops
+One of the tricky things about the jump table is keeping track of qubit phases due to sideband mixing. This was easier with one SRAM block, played from beginning to end, as we can easily make the entire sequence self-consistent. However, cycling or jumping makes this tricky. One thing that we would like to preserve, is that single qubit phases do not have to be thought about for simple experiments, such as the spin-echo experiment above. The expert will note that the phases of the pulses saved in SRAM have to be carefully chosen to align with the qubit frame. 
+
 ### Phases in simple experiments
+As the jumpTableCompiler emulates the DAC sequence, it figures out at exactly what time each piece of SRAM will be be played. In doing this, for simple experiments, it will automatically add the appropriate global phases to ensure that the SRAM will be aligned with the qubit frame, as expected. 
+
+### Phases from gateCompiler
+This is a bit of a sidenote, but important to understand. gateCompiler builds sequences backwards. This makes certain sequences much easier to build, but does something a little bit funny when we care about the jump table. When gate compiler initializes a sequence, it chooses the convention that at t=0 phase=0. It then builds the sequence backwards, and finally shifts the entire sequence forwards to have it begin at t=0 (to within 4 ns). However, this process effectively adds a global phase releated to how long the sequence is. One of the first things the jumpTableCompiler does when it gets its hands on an algorjthm is to remove this global phase, bringing back the convention that at t=0 phase=0. Then, the authomatic phase to make 'simple experiments' execute as desired is added. 
+
+### Phases in loops, jumps
+A tricky fact about re-using SRAM is that qubit phases must be accounted for. For example, if one piece of SRAM is repeatedly looped, it is clear that the phase must be compensated for **in hardware** at the end of the sequence, so that phases will align with the beginning of the sequence. Thus, **any piece of SRAM that is run more than once must compensate for qubit phases at the end**.
