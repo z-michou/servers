@@ -55,7 +55,7 @@ We would like a syntax that reflects this line of thinking, and uses the heavily
 
     # Jump Table Algorithm
     jtAlg = jt.JumpTableAlgorithm(devs)
-        jtAlg[jt.JumpTableEntry('INITIALIZATION', alg0, jt.IDLE(200*ns))]
+    jtAlg[jt.JumpTableEntry('INITIALIZATION', alg0, jt.IDLE(200*ns))]
     jtAlg[jt.JumpTableEntry('REFOCUSING', alg1, jt.IDLE(200*ns))]
     jtAlg[jt.JumpTableEntry('MEASUREMENT', alg2, jt.END())]
     jtAlg.compile()
@@ -65,6 +65,7 @@ The jumpTableAlgorithm syntax can be ready from left to right. The first step ru
 One of the ways that we can check that the experiment is being executed as we expect is to look at the waveform data. There are two things we might want to do: 1) Look at the experiment as it would appear on the oscilloscope 2) look at the actual data as it will be written into SRAM. Because the jump table can reuse SRAM data or insert delays, these are now different. 
 
 To do this, we can use ph.pulses and the jtAlg.waveform methods:
+
     # Experimental data
     jtAlg.waveform('TIME')
     ph.pulses(jtAlg)
