@@ -33,8 +33,9 @@ We would like a syntax that reflects this line of thinking, and uses the heavily
 
     # Pull qubit dictionary objects out of the registry
     # If you want to run this yourself, this code was written with 
-    # pyle branch JumpTable (commit # 071c0431b45924830e474b8cfcf25bcfd40f7815)
+    # pyle branch JumpTable (commit # 6bfab67842b415e039670a58b1b0fe50390b5761)
     # and sample object ['', 'Julian', 'Qubit', '9Xmon', '140927']
+    measure = 'q0'
     sample, devs, qubit, Qubit = gc.loadQubits(Sample, measure, write_access=True)
 
     # 1) INITIALIZATION
