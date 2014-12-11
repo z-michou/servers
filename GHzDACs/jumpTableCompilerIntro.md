@@ -26,54 +26,54 @@ We would like a syntax that reflects this line of thinking, and uses the heavily
 
 ### Example - Spin Echo
 
-from pyle import gateCompiler as gc
-from pyle import jumpTableCompiler as jt
-from pyle import gates
-from pyle.plotting import plotHelper as ph
+    from pyle import gateCompiler as gc
+    from pyle import jumpTableCompiler as jt
+    from pyle import gates
+    from pyle.plotting import plotHelper as ph
 
-# Pull qubit dictionary objects out of the registry
-# If you want to run this yourself, this code was written with 
-# pyle branch JumpTable (commit # 071c0431b45924830e474b8cfcf25bcfd40f7815)
-# and sample object ['', 'Julian', 'Qubit', '9Xmon', '140927']
-sample, devs, qubit, Qubit = gc.loadQubits(Sample, measure, write_access=True)
+    # Pull qubit dictionary objects out of the registry
+    # If you want to run this yourself, this code was written with 
+    # pyle branch JumpTable (commit # 071c0431b45924830e474b8cfcf25bcfd40f7815)
+    # and sample object ['', 'Julian', 'Qubit', '9Xmon', '140927']
+    sample, devs, qubit, Qubit = gc.loadQubits(Sample, measure, write_access=True)
 
-# 1) INITIALIZATION
-alg0 = gc.Algorithm(agents=devs)
-alg0[gates.PiHalfPulse([alg0.q0])]
-alg0.compile()
+    # 1) INITIALIZATION
+    alg0 = gc.Algorithm(agents=devs)
+    alg0[gates.PiHalfPulse([alg0.q0])]
+    alg0.compile()
 
-# 2) REFOCUSING
-alg1 = gc.Algorithm(agents = devs)
-alg1[gates.PiPulse([alg1.q0])]
-alg1.compile()
+    # 2) REFOCUSING
+    alg1 = gc.Algorithm(agents = devs)
+    alg1[gates.PiPulse([alg1.q0])]
+    alg1.compile()
 
-# 3) MEASUREMENT
-alg2 = gc.Algorithm(agents=devs)
-alg2[gates.PiHalfPulse([alg2.q0])]
-alg2[gates.Readout([alg2.q0])]
-alg2.compile()
+    # 3) MEASUREMENT
+    alg2 = gc.Algorithm(agents=devs)
+    alg2[gates.PiHalfPulse([alg2.q0])]
+    alg2[gates.Readout([alg2.q0])]
+    alg2.compile()
 
-# Jump Table Algorithm
-jtAlg = jt.JumpTableAlgorithm(devs)
-jtAlg[jt.JumpTableEntry('INITIALIZATION', alg0, jt.IDLE(200*ns))]
-jtAlg[jt.JumpTableEntry('REFOCUSING', alg1, jt.IDLE(200*ns))]
-jtAlg[jt.JumpTableEntry('MEASUREMENT', alg2, jt.END())]
-jtAlg.compile()
+    # Jump Table Algorithm
+    jtAlg = jt.JumpTableAlgorithm(devs)
+        jtAlg[jt.JumpTableEntry('INITIALIZATION', alg0, jt.IDLE(200*ns))]
+    jtAlg[jt.JumpTableEntry('REFOCUSING', alg1, jt.IDLE(200*ns))]
+    jtAlg[jt.JumpTableEntry('MEASUREMENT', alg2, jt.END())]
+    jtAlg.compile()
 
 The jumpTableAlgorithm syntax can be ready from left to right. The first step runs alg0, and then excecutes the jumpTable IDLE command. The second line executes alg1 and then executes the IDLE jumpTable command. The last line excecutes alg2 then excecutes the END jumpTable command. 
 
 One of the ways that we can check that the experiment is being executed as we expect is to look at the waveform data. There are two things we might want to do: 1) Look at the experiment as it would appear on the oscilloscope 2) look at the actual data as it will be written into SRAM. Because the jump table can reuse SRAM data or insert delays, these are now different. 
 
 To do this, we can use ph.pulses and the jtAlg.waveform methods:
-# Experimental data
-jtAlg.waveform('TIME')
-ph.pulses(jtAlg)
+    # Experimental data
+    jtAlg.waveform('TIME')
+    ph.pulses(jtAlg)
 
 
 
-# SRAM data
-jtAlg.waveform('SRAM')
-ph.pulses(jtAlg)
+    # SRAM data
+    jtAlg.waveform('SRAM')
+    ph.pulses(jtAlg)
 
 
 
