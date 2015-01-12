@@ -754,9 +754,26 @@ class Dataset(object):
         else:
             data = self.data[start:start+limit]
         return data, start + len(data)
-        
+    
+    def hasMore(self, pos):
+        return pos < len(self.data)
+    
     def keepStreaming(self, context, pos):
-        if pos < len(self.data):
+        # keepStreaming does something a bit odd and has a confusing name (ERJ)
+        #
+        # The goal is this: a client that is listening for "new data" events should only
+        # receive a single notification even if there are multiple writes.  To do this,
+        # we do the following:
+        #
+        # If a client reads to the end of the dataset, it is added to the list to be notified
+        # if another context does 'addData'.
+        #
+        # if a client calls 'addData', all listeners are notified, and then the set of listeners
+        # is cleared.
+        # 
+        # If a client reads, but not to the end of the dataset, it is immediately notified that
+        # there is more data for it to read, and then removed from the set of notifiers.
+        if self.hasMore(pos):
             if context in self.listeners:
                 self.listeners.remove(context)
             self.hub.onDataAvailable(None, [context])
@@ -826,7 +843,7 @@ class NumpyDataset(Dataset):
     
     def _saveData(self, data):
         f = self.file
-	# always save with dos linebreaks (requires numpy 1.5.0 or greater)
+        # always save with dos linebreaks (requires numpy 1.5.0 or greater)
         np.savetxt(f, data, fmt=DATA_FORMAT, delimiter=',', newline='\r\n')
         f.flush()
     
@@ -868,40 +885,19 @@ class NumpyDataset(Dataset):
         nrows = len(data) if data.size > 0 else 0
         return data, start + nrows
         
-    def keepStreaming(self, context, pos):
-        # keepStreaming does something a bit odd and has a confusing name (ERJ)
-        #
-        # The goal is this: a client that is listening for "new data" events should only
-        # receive a single notification even if there are multiple writes.  To do this,
-        # we do the following:
-        #
-        # If a client reads to the end of the dataset, it is added to the list to be notified
-        # if another context does 'addData'.
-        #
-        # if a client calls 'addData', all listeners are notified, and then the set of listeners
-        # is cleared.
-        # 
-        # If a client reads, but not to the end of the dataset, it is immediately notified that
-        # there is more data for it to read, and then removed from the set of notifiers.
-
+    def hasMore(self, pos):
         # cheesy hack: if pos == 0, we only need to check whether
         # the filesize is nonzero
         if pos == 0:
-            more = os.path.getsize(self.datafile) > 0
+            return os.path.getsize(self.datafile) > 0
         else:
             nrows = len(self.data) if self.data.size > 0 else 0
-            more = pos < nrows
-        if more:
-            if context in self.listeners:
-                self.listeners.remove(context)
-            self.hub.onDataAvailable(None, [context])
-        else:
-            self.listeners.add(context)
-        
+            return pos < nrows
+    
 if useNumpy:
     Dataset = NumpyDataset
 
-# One instance per manager.  Not persistant, recreated when connection is lost/regained
+# One instance per manager.  Not persistent, recreated when connection is lost/regained
 class DataVault(LabradServer):
     name = 'Data Vault'
     
