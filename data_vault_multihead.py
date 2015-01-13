@@ -37,6 +37,7 @@ import os
 import warnings
 import time
 import re
+import mmap
 
 import labrad
 from labrad import constants, types as T, util
@@ -384,7 +385,7 @@ class Session(object):
         files = os.listdir(self.dir)
         files.sort()
         dirs = [dsDecode(s[:-4]) for s in files if s.endswith('.dir')]
-        datasets = [dsDecode(s[:-4]) for s in files if s.endswith('.csv')]
+        datasets = [dsDecode(s[:-4]) for s in files if s.endswith('.csv') or s.endswith('.bin')]
         # apply tag filters
         def include(entries, tag, tags):
             """Include only entries that have the specified tag."""
@@ -411,7 +412,7 @@ class Session(object):
         """Get a list of dataset names in this directory."""
         files = os.listdir(self.dir)
         files.sort()
-        return [dsDecode(s[:-4]) for s in files if s.endswith('.csv')]
+        return [dsDecode(s[:-4]) for s in files if s.endswith('.csv') or s.endswith('.bin')]
     
     def newDataset(self, title, independents, dependents):
         num = self.counter
@@ -440,7 +441,8 @@ class Session(object):
             raise DatasetNotFoundError(name)
 
         filename = dsEncode(name)
-        if not os.path.exists(os.path.join(self.dir, filename + '.csv')):
+        file_base = os.path.join(self.dir, filename)
+        if not (os.path.exists(file_base + '.csv') or os.path.exists(file_base + '.bin')):
             raise DatasetNotFoundError(name)
 
         if name in self.datasets:
@@ -522,36 +524,33 @@ class SelfClosingFile(object):
         return self._file
 
     def _fileTimeout(self):
+        for callback in self.callbacks:
+            callback(self)
         self._file.close()
         del self._file
         del self._fileTimeoutCall
-        for callback in self.callbacks:
-            callback(self)
+
+    def size(self):
+        return os.fstat(self().fileno()).st_size
 
     def onClose(self, callback):
         self.callbacks.append(callback)
 
-class FileBackedData(object):
-    def __init__(self, filename, mode, cols):
-        self.filename = filename
-        self._file = SelfClosingFile(filename, mode)
-        self.cols = cols
-    
-    @property
-    def file(self):
-        return self._file()
-    
-    def _fileSize(self):
-        """Check the file size of our datafile."""
-        # does this include the size before the file has been flushed to disk?
-        return os.fstat(self.file.fileno()).st_size
-
-class CsvListData(FileBackedData):
+class CsvListData(object):
     """
     Data backed by a csv-formatted file.
     
     Stores the entire contents of the file in memory as a list or numpy array
     """
+    
+    def __init__(self, filename, cols):
+        self.filename = filename
+        self._file = SelfClosingFile(filename, 'a+')
+        self.cols = cols
+    
+    @property
+    def file(self):
+        return self._file()
     
     @property
     def data(self):
@@ -602,13 +601,22 @@ class CsvListData(FileBackedData):
     def hasMore(self, pos):
         return pos < len(self.data)
 
-class CsvNumpyData(FileBackedData):
+class CsvNumpyData(CsvListData):
     """
     Data backed by a csv-formatted file.
     
     Stores the entire contents of the file in memory as a list or numpy array
     """
     
+    def __init__(self, filename, cols):
+        self.filename = filename
+        self._file = SelfClosingFile(filename, 'rw')
+        self.cols = cols
+    
+    @property
+    def file(self):
+        return self._file()
+
     def _get_data(self):
         """Read data from file on demand.
         
@@ -619,7 +627,7 @@ class CsvNumpyData(FileBackedData):
                 # of numpy.  Clearly, if the file does not exist on disk, this
                 # will be the case.  Even if the file exists on disk, we must
                 # check its size
-                if self._fileSize() > 0:
+                if self._file.size() > 0:
                     self._data = np.loadtxt(self.file, delimiter=',')
                 else:
                     self._data = np.array([[]])
@@ -655,7 +663,7 @@ class CsvNumpyData(FileBackedData):
         f.flush()
         
     def addData(self, data):
-        data = data.asarray
+        data = np.asarray(data)
         
         # reshape single row
         if len(data.shape) == 1:
@@ -692,19 +700,90 @@ class CsvNumpyData(FileBackedData):
             nrows = len(self.data) if self.data.size > 0 else 0
             return pos < nrows
 
+class BinaryData(object):
+    """
+    Data backed by a binary-formatted file.
+    
+    The file is memory-mapped to take advantage of os-level memory paging.
+    """
+    
+    def __init__(self, filename, cols):
+        self._file = SelfClosingFile(filename, 'a+b')
+        self._file.onClose(self._closeMap)
+        self.cols = cols
+        self.rowBytes = cols * 8
+
+    @property
+    def file(self):
+        return self._file()
+
+    @property
+    def data(self):
+        if not hasattr(self, '_mmap'):
+            f = self.file
+            self._mmap = mmap.mmap(f.fileno(), self._file.size())
+        return self._mmap
+    
+    def _closeMap(self, *args):
+        if hasattr(self, '_mmap'):
+            self._mmap.close()
+            del self._mmap
+            
+    def addData(self, data):
+        data = np.asarray(data, dtype='>f8')
+        
+        # reshape single row
+        if len(data.shape) == 1:
+            data.shape = (1, data.size)
+        
+        # check row length
+        if data.shape[-1] != self.cols:
+            raise BadDataError(self.cols, data.shape[-1])
+        
+        # append data to memory map
+        bytes = data.tostring('C')
+        f = self.file
+        f.seek(self._file.size())
+        f.write(bytes)
+        f.flush()
+        self._closeMap() # close the mmap since we can't resize. TODO: check whether we can mremap
+    
+    def getData(self, limit, start):
+        size = self._file.size()
+        if size == 0:
+            return [], 0
+        startOfs = start * self.rowBytes
+        if limit is None:
+            bytes = self.data[startOfs:]
+        else:
+            endOfs = startOfs + limit * self.rowBytes
+            bytes = self.data[startOfs:endOfs]
+        data = np.reshape(np.fromstring(bytes, dtype='>f8'), [-1, self.cols])
+        # nrows should be zero for an empty row
+        nrows = len(data) if data.size > 0 else 0
+        return data, start + nrows
+        
+    def hasMore(self, pos):
+        nrows = self._file.size() / self.rowBytes
+        return pos < nrows
+
 def makeData(filename, cols):
     """Make a data object that manages in-memory and on-disk storage for a dataset."""
-    if useNumpy:
-        return CsvNumpyData(filename, 'a+', cols)
+    csv_file = filename + '.csv'
+    bin_file = filename + '.bin'
+    if os.path.exists(csv_file):
+        if useNumpy:
+            return CsvNumpyData(csv_file, cols)
+        else:
+            return CsvListData(csv_file, cols)
     else:
-        return CsvListData(filename, 'a+', cols)
+        return BinaryData(bin_file, cols)
 
 class Dataset(object):
     def __init__(self, session, name, title=None, num=None, create=False, independents=[], dependents=[]):
         self.hub = session.hub
         self.name = name
         file_base = os.path.join(session.dir, dsEncode(name))
-        self.datafile = file_base + '.csv'
         self.infofile = file_base + '.ini'
         self.listeners = set() # contexts that want to hear about added data
         self.param_listeners = set()
@@ -722,7 +801,7 @@ class Dataset(object):
             self.load()
             self.access()
 
-        self.data = makeData(self.datafile, col=len(self.independents) + len(self.dependents))
+        self.data = makeData(file_base, cols=len(self.independents) + len(self.dependents))
 
     def load(self):
         S = DVSafeConfigParser()
