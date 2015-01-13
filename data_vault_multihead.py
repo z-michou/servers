@@ -419,11 +419,7 @@ class Session(object):
         self.modified = datetime.now()
 
         name = '%05d - %s' % (num, title)
-        dataset = Dataset(self, name, title, create=True)
-        for i in independents:
-            dataset.addIndependent(i)
-        for d in dependents:
-            dataset.addDependent(d)
+        dataset = Dataset(self, name, title, create=True, independents=independents, dependents=dependents)
         self.datasets[name] = dataset
         self.access()
         
@@ -504,14 +500,212 @@ class Session(object):
         dataTags = [(d, sorted(self.dataset_tags.get(d, []))) for d in datasets]
         return sessTags, dataTags
 
+class SelfClosingFile(object):
+    """
+    A container for a file object that closes the underlying file handle if not
+    accessed within a specified timeout. Call this container to get the file handle.
+    """
+    def __init__(self, filename, mode, timeout=FILE_TIMEOUT, touch=True):
+        self.filename = filename
+        self.mode = mode
+        self.timeout = timeout
+        self.callbacks = []
+        if touch:
+            self.__call__()
+
+    def __call__(self):
+        if not hasattr(self, '_file'):
+            self._file = open(self.filename, self.mode)
+            self._fileTimeoutCall = callLater(self.timeout, self._fileTimeout)
+        else:
+            self._fileTimeoutCall.reset(self.timeout)
+        return self._file
+
+    def _fileTimeout(self):
+        self._file.close()
+        del self._file
+        del self._fileTimeoutCall
+        for callback in self.callbacks:
+            callback(self)
+
+    def onClose(self, callback):
+        self.callbacks.append(callback)
+
+class FileBackedData(object):
+    def __init__(self, filename, mode, cols):
+        self.filename = filename
+        self._file = SelfClosingFile(filename, mode)
+        self.cols = cols
+    
+    @property
+    def file(self):
+        return self._file()
+    
+    def _fileSize(self):
+        """Check the file size of our datafile."""
+        # does this include the size before the file has been flushed to disk?
+        return os.fstat(self.file.fileno()).st_size
+
+class CsvListData(FileBackedData):
+    """
+    Data backed by a csv-formatted file.
+    
+    Stores the entire contents of the file in memory as a list or numpy array
+    """
+    
+    @property
+    def data(self):
+        """Read data from file on demand.
+        
+        The data is scheduled to be cleared from memory unless accessed."""
+        if not hasattr(self, '_data'):
+            self._data = []
+            self._datapos = 0
+            self._dataTimeoutCall = callLater(DATA_TIMEOUT, self._dataTimeout)
+        else:
+            self._dataTimeoutCall.reset(DATA_TIMEOUT)
+        f = self.file
+        f.seek(self._datapos)
+        lines = f.readlines()
+        self._data.extend([float(n) for n in line.split(',')] for line in lines)
+        self._datapos = f.tell()
+        return self._data
+    
+    def _dataTimeout(self):
+        del self._data
+        del self._datapos
+        del self._dataTimeoutCall
+    
+    def _saveData(self, data):
+        f = self.file
+        for row in data:
+            # always save with dos linebreaks
+            f.write(', '.join(DATA_FORMAT % v for v in row) + '\r\n')
+        f.flush()
+    
+    def addData(self, data):
+        if not len(data) or not isinstance(data[0], list):
+            data = [data]
+        if len(data[0]) != self.cols:
+            raise BadDataError(self.cols, len(data[0]))
+            
+        # append the data to the file
+        self._saveData(data)
+    
+    def getData(self, limit, start):
+        if limit is None:
+            data = self.data[start:]
+        else:
+            data = self.data[start:start+limit]
+        return data, start + len(data)
+    
+    def hasMore(self, pos):
+        return pos < len(self.data)
+
+class CsvNumpyData(FileBackedData):
+    """
+    Data backed by a csv-formatted file.
+    
+    Stores the entire contents of the file in memory as a list or numpy array
+    """
+    
+    def _get_data(self):
+        """Read data from file on demand.
+        
+        The data is scheduled to be cleared from memory unless accessed."""
+        if not hasattr(self, '_data'):
+            try:
+                # if the file is empty, this line can barf in certain versions
+                # of numpy.  Clearly, if the file does not exist on disk, this
+                # will be the case.  Even if the file exists on disk, we must
+                # check its size
+                if self._fileSize() > 0:
+                    self._data = np.loadtxt(self.file, delimiter=',')
+                else:
+                    self._data = np.array([[]])
+                if len(self._data.shape) == 1:
+                    self._data.shape = (1, len(self._data))
+            except ValueError:
+                # no data saved yet
+                # this error is raised by numpy <=1.2
+                self._data = np.array([[]])
+            except IOError:
+                # no data saved yet
+                # this error is raised by numpy 1.3
+                self.file.seek(0)
+                self._data = np.array([[]])
+            self._dataTimeoutCall = callLater(DATA_TIMEOUT, self._dataTimeout)
+        else:
+            self._dataTimeoutCall.reset(DATA_TIMEOUT)
+        return self._data
+
+    def _set_data(self, data):
+        self._data = data
+        
+    data = property(_get_data, _set_data)
+        
+    def _dataTimeout(self):
+        del self._data
+        del self._dataTimeoutCall
+        
+    def _saveData(self, data):
+        f = self.file
+        # always save with dos linebreaks (requires numpy 1.5.0 or greater)
+        np.savetxt(f, data, fmt=DATA_FORMAT, delimiter=',', newline='\r\n')
+        f.flush()
+        
+    def addData(self, data):
+        data = data.asarray
+        
+        # reshape single row
+        if len(data.shape) == 1:
+            data.shape = (1, data.size)
+        
+        # check row length
+        if data.shape[-1] != self.cols:
+            raise BadDataError(self.cols, data.shape[-1])
+        
+        # append data to in-memory data
+        if self.data.size > 0:
+            self.data = np.vstack((self.data, data))
+        else:
+            self.data = data
+            
+        # append data to file
+        self._saveData(data)
+    
+    def getData(self, limit, start):
+        if limit is None:
+            data = self.data[start:]
+        else:
+            data = self.data[start:start+limit]
+        # nrows should be zero for an empty row
+        nrows = len(data) if data.size > 0 else 0
+        return data, start + nrows
+        
+    def hasMore(self, pos):
+        # cheesy hack: if pos == 0, we only need to check whether
+        # the filesize is nonzero
+        if pos == 0:
+            return os.path.getsize(self.filename) > 0
+        else:
+            nrows = len(self.data) if self.data.size > 0 else 0
+            return pos < nrows
+
+def makeData(filename, cols):
+    """Make a data object that manages in-memory and on-disk storage for a dataset."""
+    if useNumpy:
+        return CsvNumpyData(filename, 'a+', cols)
+    else:
+        return CsvListData(filename, 'a+', cols)
+
 class Dataset(object):
-    def __init__(self, session, name, title=None, num=None, create=False):
+    def __init__(self, session, name, title=None, num=None, create=False, independents=[], dependents=[]):
         self.hub = session.hub
         self.name = name
         file_base = os.path.join(session.dir, dsEncode(name))
         self.datafile = file_base + '.csv'
         self.infofile = file_base + '.ini'
-        self.file # create the datafile, but don't do anything with it
         self.listeners = set() # contexts that want to hear about added data
         self.param_listeners = set()
         self.comment_listeners = set()
@@ -519,14 +713,16 @@ class Dataset(object):
         if create:
             self.title = title
             self.created = self.accessed = self.modified = datetime.now()
-            self.independents = []
-            self.dependents = []
+            self.independents = [self.makeIndependent(i) for i in independents]
+            self.dependents = [self.makeDependent(d) for d in dependents]
             self.parameters = []
             self.comments = []
             self.save()
         else:
             self.load()
             self.access()
+
+        self.data = makeData(self.datafile, col=len(self.independents) + len(self.dependents))
 
     def load(self):
         S = DVSafeConfigParser()
@@ -622,80 +818,22 @@ class Dataset(object):
         """Update time of last access for this dataset."""
         self.accessed = datetime.now()
         self.save()
-
-    @property
-    def file(self):
-        """Open the datafile on demand.
-
-        The file is also scheduled to be closed
-        if it has not accessed for a while.
-        """
-        if not hasattr(self, '_file'):
-            self._file = open(self.datafile, 'a+') # append data
-            self._fileTimeoutCall = callLater(FILE_TIMEOUT, self._fileTimeout)
-        else:
-            self._fileTimeoutCall.reset(FILE_TIMEOUT)
-        return self._file
         
-    def _fileTimeout(self):
-        self._file.close()
-        del self._file
-        del self._fileTimeoutCall
-    
-    def _fileSize(self):
-        """Check the file size of our datafile."""
-        # does this include the size before the file has been flushed to disk?
-        return os.fstat(self.file.fileno()).st_size
-    
-    @property
-    def data(self):
-        """Read data from file on demand.
-        
-        The data is scheduled to be cleared from memory unless accessed."""
-        if not hasattr(self, '_data'):
-            self._data = []
-            self._datapos = 0
-            self._dataTimeoutCall = callLater(DATA_TIMEOUT, self._dataTimeout)
-        else:
-            self._dataTimeoutCall.reset(DATA_TIMEOUT)
-        f = self.file
-        f.seek(self._datapos)
-        lines = f.readlines()
-        self._data.extend([float(n) for n in line.split(',')] for line in lines)
-        self._datapos = f.tell()
-        return self._data
-    
-    def _dataTimeout(self):
-        del self._data
-        del self._datapos
-        del self._dataTimeoutCall
-    
-    def _saveData(self, data):
-        f = self.file
-        for row in data:
-            # always save with dos linebreaks
-            f.write(', '.join(DATA_FORMAT % v for v in row) + '\r\n')
-        f.flush()
-    
-    def addIndependent(self, label):
+    def makeIndependent(self, label):
         """Add an independent variable to this dataset."""
         if isinstance(label, tuple):
             label, units = label
         else:
             label, units = parseIndependent(label)
-        d = dict(label=label, units=units)
-        self.independents.append(d)
-        self.save()
+        return dict(label=label, units=units)
 
-    def addDependent(self, label):
+    def makeDependent(self, label):
         """Add a dependent variable to this dataset."""
         if isinstance(label, tuple):
             label, legend, units = label
         else:
             label, legend, units = parseDependent(label)
-        d = dict(category=label, label=legend, units=units)
-        self.dependents.append(d)
-        self.save()
+        return dict(category=label, label=legend, units=units)
 
     def addParameter(self, name, data, saveNow=True):
         self._addParam(name, data)
@@ -735,29 +873,16 @@ class Dataset(object):
         raise BadParameterError(name)
         
     def addData(self, data):
-        varcount = len(self.independents) + len(self.dependents)
-        if not len(data) or not isinstance(data[0], list):
-            data = [data]
-        if len(data[0]) != varcount:
-            raise BadDataError(varcount, len(data[0]))
-            
         # append the data to the file
-        self._saveData(data)
+        self.data.addData(data)
         
         # notify all listening contexts
         self.hub.onDataAvailable(None, self.listeners)
         self.listeners = set()
     
     def getData(self, limit, start):
-        if limit is None:
-            data = self.data[start:]
-        else:
-            data = self.data[start:start+limit]
-        return data, start + len(data)
-    
-    def hasMore(self, pos):
-        return pos < len(self.data)
-    
+        return self.data.getData(limit, start)
+        
     def keepStreaming(self, context, pos):
         # keepStreaming does something a bit odd and has a confusing name (ERJ)
         #
@@ -773,7 +898,7 @@ class Dataset(object):
         # 
         # If a client reads, but not to the end of the dataset, it is immediately notified that
         # there is more data for it to read, and then removed from the set of notifiers.
-        if self.hasMore(pos):
+        if self.data.hasMore(pos):
             if context in self.listeners:
                 self.listeners.remove(context)
             self.hub.onDataAvailable(None, [context])
@@ -802,100 +927,6 @@ class Dataset(object):
             self.hub.onCommentsAvailable(None, [context])
         else:
             self.comment_listeners.add(context)
-        
-
-class NumpyDataset(Dataset):
-
-    def _get_data(self):
-        """Read data from file on demand.
-        
-        The data is scheduled to be cleared from memory unless accessed."""
-        if not hasattr(self, '_data'):
-            try:
-                # if the file is empty, this line can barf in certain versions
-                # of numpy.  Clearly, if the file does not exist on disk, this
-                # will be the case.  Even if the file exists on disk, we must
-                # check its size
-                if self._fileSize() > 0:
-                    self._data = np.loadtxt(self.file, delimiter=',')
-                else:
-                    self._data = np.array([[]])
-                if len(self._data.shape) == 1:
-                    self._data.shape = (1, len(self._data))
-            except ValueError:
-                # no data saved yet
-                # this error is raised by numpy <=1.2
-                self._data = np.array([[]])
-            except IOError:
-                # no data saved yet
-                # this error is raised by numpy 1.3
-                self.file.seek(0)
-                self._data = np.array([[]])
-            self._dataTimeoutCall = callLater(DATA_TIMEOUT, self._dataTimeout)
-        else:
-            self._dataTimeoutCall.reset(DATA_TIMEOUT)
-        return self._data
-
-    def _set_data(self, data):
-        self._data = data
-        
-    data = property(_get_data, _set_data)
-    
-    def _saveData(self, data):
-        f = self.file
-        # always save with dos linebreaks (requires numpy 1.5.0 or greater)
-        np.savetxt(f, data, fmt=DATA_FORMAT, delimiter=',', newline='\r\n')
-        f.flush()
-    
-    def _dataTimeout(self):
-        del self._data
-        del self._dataTimeoutCall
-        
-    def addData(self, data):
-        varcount = len(self.independents) + len(self.dependents)
-        data = data.asarray
-        
-        # reshape single row
-        if len(data.shape) == 1:
-            data.shape = (1, data.size)
-        
-        # check row length
-        if data.shape[-1] != varcount:
-            raise BadDataError(varcount, data.shape[-1])
-        
-        # append data to in-memory data
-        if self.data.size > 0:
-            self.data = np.vstack((self.data, data))
-        else:
-            self.data = data
-            
-        # append data to file
-        self._saveData(data)
-        
-        # notify all listening contexts
-        self.hub.onDataAvailable(None, self.listeners)
-        self.listeners = set()
-    
-    def getData(self, limit, start):
-        if limit is None:
-            data = self.data[start:]
-        else:
-            data = self.data[start:start+limit]
-        # nrows should be zero for an empty row
-        nrows = len(data) if data.size > 0 else 0
-        return data, start + nrows
-        
-    def hasMore(self, pos):
-        # cheesy hack: if pos == 0, we only need to check whether
-        # the filesize is nonzero
-        if pos == 0:
-            return os.path.getsize(self.datafile) > 0
-        else:
-            nrows = len(self.data) if self.data.size > 0 else 0
-            return pos < nrows
-    
-if useNumpy:
-    Dataset = NumpyDataset
 
 # One instance per manager.  Not persistent, recreated when connection is lost/regained
 class DataVault(LabradServer):
