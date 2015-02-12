@@ -1,3 +1,4 @@
+import base64
 from datetime import datetime
 import os
 import re
@@ -74,6 +75,11 @@ def parse_dependent(s):
     legend = _get_match(_re_legend, s, '')
     units = _get_match(_re_units, s, '')
     return label, legend, units
+
+
+## data-url support for storing parameters
+
+DATA_URL_PREFIX = 'data:application/labrad;base64,'
 
 
 class SessionStore(object):
@@ -365,8 +371,15 @@ class Dataset(object):
         def getPar(i):
             sec = 'Parameter %d' % (i+1)
             label = S.get(sec, 'Label', raw=True)
-            # TODO: big security hole! eval can execute arbitrary code
-            data = T.evalLRData(S.get(sec, 'Data', raw=True))
+            raw = S.get(sec, 'Data', raw=True)
+            if raw.startswith(DATA_URL_PREFIX):
+                # decode parameter data from dataurl
+                all_bytes = base64.urlsafe_b64decode(raw[len(DATA_URL_PREFIX):])
+                t, data_bytes = T.unflatten(all_bytes, 'ss')
+                data = T.unflatten(data_bytes, t)
+            else:
+                # old parameters may have been saved using repr
+                data = T.evalLRData(raw)
             return dict(label=label, data=data)
         count = S.getint(gen, 'Parameters')
         self.parameters = [getPar(i) for i in range(count)]
@@ -413,8 +426,11 @@ class Dataset(object):
             sec = 'Parameter %d' % (i+1)
             S.add_section(sec)
             S.set(sec, 'Label', par['label'])
-            # TODO: smarter saving here, since eval'ing is insecure
-            S.set(sec, 'Data', repr(par['data']))
+            # encode the parameter value as a data-url
+            data_bytes, t = T.flatten(par['data'])
+            all_bytes, _ = T.flatten((str(t), data_bytes), 'ss')
+            data_url = DATA_URL_PREFIX + base64.urlsafe_b64encode(all_bytes)
+            S.set(sec, 'Data', data_url)
 
         sec = 'Comments'
         S.add_section(sec)
