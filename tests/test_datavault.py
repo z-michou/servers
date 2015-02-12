@@ -17,7 +17,7 @@ def _test_path():
 
 def setup_dv(cxn):
     dv = cxn.data_vault
-    dv.cd(_test_path())
+    dv.cd(_test_path(), True)
     return dv
 
 @pytest.yield_fixture
@@ -78,3 +78,5 @@ def test_read_dataset():
         stored = dv.get(len(data)) # get only up to the last extra row
         assert np.equal(data, stored).all()
 
+if __name__ == "__main__":
+    pytest.main(['-v', __file__])
