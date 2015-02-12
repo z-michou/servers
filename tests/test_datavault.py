@@ -4,6 +4,8 @@ import numpy as np
 import pytest
 
 import labrad
+import labrad.types as T
+import labrad.util.hydrant as hydrant
 
 # use the same path for all datasets in a given run of the tests in this module
 _path = None
@@ -77,6 +79,21 @@ def test_read_dataset():
         dv.open(name)
         stored = dv.get(len(data)) # get only up to the last extra row
         assert np.equal(data, stored).all()
+
+
+def test_parameters(dv):
+    """Create a dataset with parameters"""
+    dv.new('test', ['x', 'y'], ['z'])
+    for i in xrange(100):
+        t = hydrant.randType(noneOkay=False)
+        a = hydrant.randValue(t)
+        name = 'param{}'.format(i)
+        dv.add_parameter(name, a)
+        b = dv.get_parameter(name)
+        sa, ta = T.flatten(a)
+        sb, tb = T.flatten(b)
+        assert ta == tb
+        assert sa == sb
 
 if __name__ == "__main__":
     pytest.main(['-v', __file__])
