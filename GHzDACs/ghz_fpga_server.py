@@ -1637,6 +1637,15 @@ class FPGAServer(DeviceServer):
 
         dev = self.selectedDAC(c)
         yield dev.runSram(data, loop, blockDelay)
+
+    @setting(1082, "Single jump table entry", name='s', arg=['v', '(i,i)', 'i', 's'],
+             to_address=['s', 'v'], from_address='v')
+    def single_jt_entry(self, c, name, arg, to_address, from_address):
+        print name
+        print arg
+        print to_address
+        print from_address
+
     
     @setting(1100, 'DAC I2C', data='*w', returns='*w')
     def dac_i2c(self, c, data):
