@@ -216,12 +216,12 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 from labrad import types as T
 import labrad.units as U
+from labrad.units import Unit, Value
 from labrad.devices import DeviceServer
 from labrad.server import setting
 
-import servers.GHzDACs.Cleanup.dac as dac
-import servers.GHzDACs.Cleanup.adc as adc
-import servers.GHzDACs.Cleanup.fpga as fpga
+from .Cleanup import dac, adc, fpga
+from . import jumpTable
 
 from util import TimedLock, LoggingPacket
 LOGGING_PACKET=False
@@ -1638,13 +1638,54 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDAC(c)
         yield dev.runSram(data, loop, blockDelay)
 
-    @setting(1082, "Single jump table entry", name='s', arg=['v', '(i,i)', 'i', 's'],
-             to_address=['s', 'v'], from_address='v')
-    def single_jt_entry(self, c, name, arg, to_address, from_address):
-        print name
-        print arg
-        print to_address
-        print from_address
+    @setting(1082, "Add jump table entry", name='s', arg=['ww{IDLE}', 'www{JUMP}', 'w{NOP,END}', 'wwww{CYCLE}'])
+    def add_jt_entry(self, c, name, arg=None):
+        dev = self.selectedDAC(c)
+        assert(isinstance(dev, dac.DAC_Build13))
+        d = c.setdefault(dev, {})
+        entries = d.setdefault('jt_entries', [])
+        if name == 'CHECK':
+            raise NotImplementedError("Check not implemented yet")
+        elif name == 'IDLE':
+            from_address, idle_duration_ns = arg
+            if idle_duration_ns % 4 != 0:
+                raise ValueError("Idle duration must be divisible by four")
+            op = jumpTable.IDLE(idle_duration_ns//4)
+            entry = jumpTable.JumpEntry(from_address, 0, op)
+            entries.append(entry)
+        elif name == 'JUMP':
+            from_address, to_address, jt_idx = arg
+            op = jumpTable.JUMP(jt_idx)
+            entry = jumpTable.JumpEntry(from_address, to_address, op)
+            entries.append(entry)
+        elif name == 'CYCLE':
+            from_address, to_address, jt_idx, counter_idx = arg
+            if counter_idx >= dev.NUM_COUNTERS:
+                raise ValueError("Cannot specify counter > {0} (you said {1})".format(dev.NUM_COUNTERS, counter_idx))
+            entries.append(jumpTable.JumpEntry(from_address, to_address, jumpTable.CYCLE(counter_idx, jt_idx)))
+        elif name == 'NOP':
+            from_address = int(arg)
+            entries.append(jumpTable.JumpEntry(from_address, 0, jumpTable.NOP))
+        elif name == 'END':
+            from_address = int(arg)
+            entries.append(jumpTable.JumpEntry(from_address, 0, jumpTable.END))
+
+    @setting(1083, "Clear jump table")
+    def clear_jt(self, c):
+        dev = self.selectedDAC(c)
+        d = c.setdefault(dev, {})
+        d['jt_entries'] = []
+        d['jt_counters'] = []
+
+    @setting(1084, "Set Jump Table Counters", counters='*w')
+    def set_jt_counters(self, c, counters):
+        dev = self.selectedDAC(c)
+        d = c.setdefault(dev, {})
+        assert(isinstance(dev, dac.DAC_Build13))
+        if len(counters) >= dev.NUM_COUNTERS:
+            raise ValueError("More than {0} counters specified: '{1}'".format(dev.NUM_COUNTERS, counters))
+        d['jt_counters'] = counters
+
 
     
     @setting(1100, 'DAC I2C', data='*w', returns='*w')

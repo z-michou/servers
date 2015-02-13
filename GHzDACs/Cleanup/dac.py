@@ -1,7 +1,9 @@
 import numpy as np
 
-import servers.GHzDACs.Cleanup.fpga as fpga
-import servers.GHzDACs.jumpTable as jumpTable
+from ...GHzDACs import jumpTable
+from ..Cleanup import fpga
+# import servers.GHzDACs.Cleanup.fpga as fpga
+# import servers.GHzDACs.jumpTable as jumpTable
 
 # named functions
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -9,7 +11,8 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.devices import DeviceWrapper
 from labrad import types as T
 
-from servers.GHzDACs.util import littleEndian, TimedLock
+from ..util import littleEndian, TimedLock
+# from servers.GHzDACs.util import littleEndian, TimedLock
 
 
 # CHANGELOG
@@ -965,8 +968,61 @@ fpga.REGISTRY[('DAC', 11)] = DAC_Build11
 
 ### Jump table
 
-class DAC_Build13(DAC_Build11):
+class DacRunner_Build13(DacRunner_Build7):
+    # noinspection PyMissingConstructor
+    def __init__(self, dev, reps, start_delay, jt_entries, jt_counters, sram):
+        """
+
+        :type dev: DAC_Build13
+        :param reps:
+        :param start_delay:
+        :param jt_entries:
+        :param jt_counters:
+        :param sram:
+        :return:
+        """
+        self.dev = dev
+        self.reps = reps
+        self.start_delay = start_delay
+        self.jump_table = jumpTable.JumpTable(jumps=jt_entries, counters=jt_counters)  # TODO: start address?
+        self.sram = sram
+        self.nPackets = 0  # we don't expect any packets back
+
+    def pageable(self):
+        return False  # no paging for JT
+
+    def loadPacket(self, page, isMaster):
+        """Create pipelined load packet.  For DAC, upload mem and SRAM."""
+        if isMaster:
+            # TODO: how can we add a delay to the JT?
+            self.start_delay += MASTER_SRAM_DELAY
+        return self.dev.load(self.jump_table, self.sram)
+
+    def runPacket(self, page, slave, delay, sync):
+        """Create run packet."""
+        startDelay = self.startDelay + delay
+        regs = self.dev.regRun(self.reps, page, slave, startDelay,
+                               blockDelay=None, sync=sync)
+        return regs
+
+
+class DAC_Build13(DAC_Build7):
+    RUNNER_CLASS = DacRunner_Build13
     JUMP_TABLE_LEN = 528
+    NUM_COUNTERS = 4
+
+    def buildRunner(self, reps, info):
+        """
+        :param reps:
+        :param info:
+        :return:
+        """
+        jt_entries = info['jt_entries']
+        jt_counters = info['jt_counters']
+        start_delay = info.get('startDelay', 0)
+        sram = info.get('sram', None)
+        runner = self.RUNNER_CLASS(self, reps, start_delay, jt_entries, jt_counters, sram)
+        return runner
 
     # let's check the various registry functions.
     # OK means old implementation should work
@@ -980,6 +1036,10 @@ class DAC_Build13(DAC_Build11):
     @classmethod
     def regRun(cls, reps, page, slave, delay, blockDelay=None, sync=0):
         # TODO: probably get rid of page, blockDelay
+        if blockDelay is not None:
+            raise ValueError("JT board got a non-None blockDelay: ", blockDelay)
+        if page:
+            raise ValueError("JT board got a non-zero page: ", page)
         regs = np.zeros(cls.REG_PACKET_LEN, dtype='<u1')
         # old version of slave: 0 = master, 1 = slave, 3 = idle (bit 43)
         # new version: 0 = idle, 1 = master, 2 = test, 3 = slave (bit 0)
@@ -989,6 +1049,8 @@ class DAC_Build13(DAC_Build11):
             start = 3
         elif slave == 3:
             start = 0
+        else:
+            raise ValueError('"slave" must be 0, 1, or 3, not %s' % slave)
         regs[0] = start
         regs[1] = 0  # TODO: what kind of readback do we want?
         regs[13:15] = littleEndian(reps, 2)
@@ -1025,18 +1087,14 @@ class DAC_Build13(DAC_Build11):
         regs[43:45] = littleEndian(int(delay), 2)
         return regs
 
+    @classmethod
+    def regDebug(cls, word1, word2, word3, word4):
+        raise NotImplementedError("Not sure what debug means for the JT")
+
     # regClockPolarity -- OK
     # regDebug -- OK
     # regI2C -- OK
     # makeSram -- OK
-
-    @classmethod
-    def makeMemory(cls, data, p, page=0):
-        raise NotImplementedError("No memory commands for jump table!")
-
-    @classmethod
-    def pktWriteMem(cls, page, data):
-        raise NotImplementedError("No memory commands for jump table!")
 
     def load(self, jt, sram, page=None):
         if page is not None:
@@ -1044,6 +1102,7 @@ class DAC_Build13(DAC_Build11):
         p = self.makePacket()
         self.makeJumpTable(jt, p)
         self.makeSRAM(sram, p)
+        return p
 
     @classmethod
     def makeJumpTable(cls, jtObj, p):
@@ -1055,21 +1114,28 @@ class DAC_Build13(DAC_Build11):
         """
         p.write(jtObj.toString())
 
-    def initPLL(self):
-        yield self._runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
-        yield self._sendRegisters(self.regRunSimple())
+    @classmethod
+    def makeMemory(cls, data, p, page=0):
+        raise NotImplementedError("No memory commands for jump table!")
 
-    # extensions to board communication
-    def _sendJumpTable(self, jtObj):
-        """Write jump table data to the FPGA."""
-        p = self.makePacket()
-        self.makeJumpTable(jtObj, p)
-        p.send()
+    @classmethod
+    def pktWriteMem(cls, page, data):
+        raise NotImplementedError("No memory commands for jump table!")
+
+    def initPLL(self):
+        @inlineCallbacks
+        def func():
+            yield self._runSerial(1, [0x1FC093, 0x1FC092, 0x100004, 0x000C11])
+            jt = jumpTable.jtRunSram(0, 0, False)
+            yield self._sendJumpTable(jt)
+            yield self._sendRegisters(self.regRunSimple())
+
+        return self.testMode(func)
 
     def runSram(self, dataIn, loop, blockDelay):
         @inlineCallbacks
         def func():
-            yield self._sendRegisters(self.regPing())
+            yield self._sendRegisters(self.regPing())  # Why is this here? DTS/PJJO
             data = np.array(dataIn, dtype='<u4').tostring()
             yield self._sendSRAM(data)
             startAddr, endAddr = 0, len(data) // 4
@@ -1130,6 +1196,14 @@ class DAC_Build13(DAC_Build11):
             fifo = fifo[::-1] if fifo[::-1] == theory else fifo
             returnValue((lvds == theory and fifo == theory, theory, lvds, fifo))
         return self.testMode(func)
+
+    # extensions to board communication
+    def _sendJumpTable(self, jtObj):
+        """Write jump table data to the FPGA."""
+        p = self.makePacket()
+        self.makeJumpTable(jtObj, p)
+        p.send()
+
 
 
 fpga.REGISTRY[('DAC', 13)] = DAC_Build13
