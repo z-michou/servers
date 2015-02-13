@@ -514,7 +514,7 @@ public class QubitContext extends AbstractServerContext {
            name = "Add Jump Table Entry",
            doc = "Add a jump table entry to a single board.")
   public void add_jump_table_entry(@Accepts({"s", "(ss)"}) Data channel,
-                                   @Accepts("s") Data command_name,
+                                   String command_name,
                                    @Accepts({"w{NOP,END}", "ww{IDLE}", "www{JUMP}", "wwww{CYCLE}"}) Data command_data) {
     SramChannelBase ch = getChannel(channel, SramChannelBase.class);
     ch.addJumpTableEntry(command_name, command_data);

@@ -81,7 +81,7 @@ public abstract class SramChannelBase<T> implements SramChannel {
   public void clearJumpTable() {
     jumpTable.clear();
   }
-  public void addJumpTableEntry(Data name, Data data) {
+  public void addJumpTableEntry(String name, Data data) {
     jumpTable.addEntry(name, data);
   }
   public void setCounters(long[] counters) {

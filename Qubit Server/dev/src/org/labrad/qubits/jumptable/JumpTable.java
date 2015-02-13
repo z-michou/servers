@@ -13,7 +13,7 @@ import java.util.List;
  * Basic logic for the jump table.
  */
 public class JumpTable {
-  private final List<Data> entryNames;
+  private final List<String> entryNames;
   private final List<Data> entryArguments;
   private long[] counters;
 
@@ -32,7 +32,7 @@ public class JumpTable {
     counters = null;
   }
 
-  public void addEntry(Data name, Data argument) {
+  public void addEntry(String name, Data argument) {
     // TODO: type check the name and argument
     entryNames.add(name);
     entryArguments.add(argument);
@@ -69,7 +69,7 @@ public class JumpTable {
     runRequest.add("Clear Jump Table");
     runRequest.add("Set Jump Table Counters", Data.valueOf(counters));
     for (int i=0; i<entryNames.size(); i++) {
-      runRequest.add("Add Jump Table Entry", entryNames.get(i), entryArguments.get(i));
+      runRequest.add("Add Jump Table Entry", Data.valueOf(entryNames.get(i)), entryArguments.get(i));
     }
   }
 }
