@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
 
+import org.labrad.data.Request;
 import org.labrad.qubits.channels.TriggerChannel;
 import org.labrad.qubits.enums.DacTriggerId;
 import org.labrad.qubits.mem.CallSramCommand;
@@ -567,4 +568,7 @@ public abstract class FpgaModelDac implements FpgaModel {
     }
     throw new RuntimeException(String.format("Block '%s' not found", name));
   }
+
+  public abstract void addJumpTablePackets(Request runRequest);
+  public abstract void clearJumpTable();
 }
