@@ -1909,7 +1909,7 @@ class FPGAServer(DeviceServer):
                      ))
 
     @setting(1301, 'DAC Bringup New', lvdsOptimize='b', lvdsSD='w', signed='b', targetFifo='w',
-             returns='*(bw)')
+             returns='*(bs)')
     def dac_bringup(self, c, lvdsOptimize=False, lvdsSD=None, signed=True, targetFifo=None):
         """
 
