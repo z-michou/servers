@@ -1638,7 +1638,7 @@ class FPGAServer(DeviceServer):
         dev = self.selectedDAC(c)
         yield dev.runSram(data, loop, blockDelay)
 
-    @setting(1082, "Add jump table entry", name='s', arg=['ww{IDLE}', 'www{JUMP}', 'w{NOP,END}', 'wwww{CYCLE}'])
+    @setting(1082, "Add Jump Table Entry", name='s', arg=['ww{IDLE}', 'www{JUMP}', 'w{NOP,END}', 'wwww{CYCLE}'])
     def add_jt_entry(self, c, name, arg=None):
         dev = self.selectedDAC(c)
         assert(isinstance(dev, dac.DAC_Build13))
@@ -1670,7 +1670,7 @@ class FPGAServer(DeviceServer):
             from_address = int(arg)
             entries.append(jumpTable.JumpEntry(from_address, 0, jumpTable.END))
 
-    @setting(1083, "Clear jump table")
+    @setting(1083, "Clear Jump Table")
     def clear_jt(self, c):
         dev = self.selectedDAC(c)
         d = c.setdefault(dev, {})
