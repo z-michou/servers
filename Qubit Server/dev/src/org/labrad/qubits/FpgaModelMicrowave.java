@@ -83,17 +83,4 @@ public class FpgaModelMicrowave extends FpgaModelDac {
 		return iq != null;
 	}
 
-  @Override
-  public void addJumpTablePackets(Request runRequest) {
-    if (iq != null) {
-      iq.getJumpTable().addPackets(runRequest);
-    }
-  }
-
-  @Override
-  public void clearJumpTable() {
-    if (iq != null) {
-      iq.clearJumpTable();
-    }
-  }
 }

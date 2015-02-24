@@ -87,22 +87,4 @@ public class FpgaModelAnalog extends FpgaModelDac {
 		return !dacs.isEmpty();
 	}
 
-  @Override
-  public void addJumpTablePackets(Request runRequest) {
-    if (!dacs.isEmpty()) {
-      AnalogChannel ch = dacs.values().iterator().next();
-      for (AnalogChannel other : dacs.values()) {
-        Preconditions.checkArgument(ch.getJumpTable().equals(other.getJumpTable()),
-                "Jump tables not equivalent for channels sharing a board: %s, %s", ch.getName(), ch.getName());
-      }
-      ch.getJumpTable().addPackets(runRequest);
-    }
-  }
-
-  @Override
-  public void clearJumpTable() {
-    for (AnalogChannel ch : dacs.values()) {
-      ch.clearJumpTable();
-    }
-  }
 }

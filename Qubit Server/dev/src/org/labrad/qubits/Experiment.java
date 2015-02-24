@@ -360,8 +360,21 @@ public class Experiment {
    * Clear the jump table for this experiment.
    */
   public void clearJumpTable() {
+    // TODO: combine this with clearMemory below
     for (FpgaModelDac fpga: getDacFpgas()) {
-      fpga.clearJumpTable();
+      fpga.clearController();
+    }
+  }
+
+  public void addJumpTableEntry(String command_name, Data command_data) {
+    for (FpgaModelDac fpga: getDacFpgas()) {
+      fpga.getJumpTableController().addJumpTableEntry(command_name, command_data);
+    }
+  }
+
+  public void setJumpTableCounters(long[] counters) {
+    for (FpgaModelDac fpga: getDacFpgas()) {
+      fpga.getJumpTableController().setCounters(counters);
     }
   }
 
@@ -378,7 +391,7 @@ public class Experiment {
   public void clearMemory() {
     // all memory state is kept in the fpga models, so we clear them out
     for (FpgaModelDac fpga : getDacFpgas()) {
-      fpga.clearMemory();
+      fpga.clearController();
     }
   }
 
@@ -397,13 +410,13 @@ public class Experiment {
     for (FpgaModelDac fpga : getDacFpgas()) {
       List<MemoryCommand> cmds = allCmds.get(fpga); 
       if (cmds != null) {
-        fpga.addMemoryCommands(cmds);
-        fpga.addMemoryNoops(maxCmds - cmds.size());
+        fpga.getMemoryController().addMemoryCommands(cmds);
+        fpga.getMemoryController().addMemoryNoops(maxCmds - cmds.size());
       } else {
-        fpga.addMemoryNoops(maxCmds);
+        fpga.getMemoryController().addMemoryNoops(maxCmds);
       }
       if (delay > 0) {
-        fpga.addMemoryDelay(delay);
+        fpga.getMemoryController().addMemoryDelay(delay);
       }
     }
   }
@@ -413,7 +426,7 @@ public class Experiment {
    * 
    */
   public void addSingleMemoryDelay(FpgaModelDac fpga, double delay_us) {
-    fpga.addMemoryDelay(delay_us);
+    fpga.getMemoryController().addMemoryDelay(delay_us);
   }
   
   /**
@@ -422,7 +435,7 @@ public class Experiment {
    */
   public void addMemoryDelay(double microseconds) {
     for (FpgaModelDac fpga : getDacFpgas()) {
-      fpga.addMemoryDelay(microseconds);
+      fpga.getMemoryController().addMemoryDelay(microseconds);
     }
   }
   
@@ -447,9 +460,9 @@ public class Experiment {
 			  
 		  }
 		  if (t < maxT_us) {
-			  fpga.addMemoryDelay(maxT_us - t);
+			  fpga.getMemoryController().addMemoryDelay(maxT_us - t);
 		  } else {
-			  fpga.addMemoryNoop();
+			  fpga.getMemoryController().addMemoryNoop();
 		  }
 	  }
   }
@@ -458,19 +471,19 @@ public class Experiment {
    */
   public void callSramBlock(String block) {
     for (FpgaModelDac fpga : getDacFpgas()) {
-      fpga.callSramBlock(block);
+      fpga.getMemoryController().callSramBlock(block);
     }
   }
 
   public void callSramDualBlock(String block1, String block2) {
     for (FpgaModelDac fpga : getDacFpgas()) {
-      fpga.callSramDualBlock(block1, block2);
+      fpga.getMemoryController().callSramDualBlock(block1, block2);
     }
   }
 
   public void setSramDualBlockDelay(double delay_ns) {
     for (FpgaModelDac fpga : getDacFpgas()) {
-      fpga.setSramDualBlockDelay(delay_ns);
+      fpga.getMemoryController().setSramDualBlockDelay(delay_ns);
     }
   }
   
@@ -506,7 +519,7 @@ public class Experiment {
     }
     // non-timer boards get started if they have never been started before
     for (FpgaModelDac fpga : getNonTimerFpgas()) {
-      if (!fpga.isTimerStarted()) {
+      if (!fpga.getMemoryController().isTimerStarted()) {
         starts.add(fpga);
       } else {
         noops.add(fpga);
@@ -514,11 +527,11 @@ public class Experiment {
     }
     // start the timer on requested boards
     for (FpgaModelDac fpga : starts) {
-      fpga.startTimer();
+      fpga.getMemoryController().startTimer();
     }
     // insert a no-op on all other boards
     for (FpgaModelDac fpga : noops) {
-      fpga.addMemoryNoop();
+      fpga.getMemoryController().addMemoryNoop();
     }
   }
 
@@ -535,7 +548,7 @@ public class Experiment {
     }
     // stop non-timer boards if they are currently running
     for (FpgaModelDac fpga : getNonTimerFpgas()) {
-      if (fpga.isTimerRunning()) {
+      if (fpga.getMemoryController().isTimerRunning()) {
         stops.add(fpga);
       } else {
         noops.add(fpga);
@@ -543,11 +556,11 @@ public class Experiment {
     }
     // stop the timer on requested boards and non-timer boards
     for (FpgaModelDac fpga : stops) {
-      fpga.stopTimer();
+      fpga.getMemoryController().stopTimer();
     }
     // insert a no-op on all other boards
     for (FpgaModelDac fpga : noops) {
-      fpga.addMemoryNoop();
+      fpga.getMemoryController().addMemoryNoop();
     }
   }
 

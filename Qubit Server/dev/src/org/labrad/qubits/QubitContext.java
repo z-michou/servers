@@ -513,20 +513,16 @@ public class QubitContext extends AbstractServerContext {
   @Setting(id = 371,
            name = "Add Jump Table Entry",
            doc = "Add a jump table entry to a single board.")
-  public void add_jump_table_entry(@Accepts({"s", "(ss)"}) Data channel,
-                                   String command_name,
+  public void add_jump_table_entry(String command_name,
                                    @Accepts({"w{NOP,END}", "ww{IDLE}", "www{JUMP}", "wwww{CYCLE}"}) Data command_data) {
-    SramChannelBase ch = getChannel(channel, SramChannelBase.class);
-    ch.addJumpTableEntry(command_name, command_data);
+    getExperiment().addJumpTableEntry(command_name, command_data);
   }
 
   @Setting(id = 372,
            name = "Set Jump Table Counters",
            doc = "Set the counter values for this board")
-  public void set_jump_table_counters(@Accepts({"s", "(ss)"}) Data channel,
-                                      @Accepts("*w") Data counters) {
-    SramChannelBase ch = getChannel(channel, SramChannelBase.class);
-    ch.setCounters(counters.getWordArray());
+  public void set_jump_table_counters(@Accepts("*w") Data counters) {
+    getExperiment().setJumpTableCounters(counters.getWordArray());
   }
 
 
@@ -948,20 +944,7 @@ public class QubitContext extends AbstractServerContext {
 
     // upload all memory and SRAM data
     for (FpgaModelDac fpga : expt.getDacFpgas()) {
-      runRequest.add("Select Device", Data.valueOf(fpga.getName()));
-      // TODO: how to handle backwards compatibility for non-JT boards?
-//      runRequest.add("Start Delay", Data.valueOf((long)fpga.getStartDelay()));  // new 5/4/11 - pomalley
-//      runRequest.add("Memory", Data.valueOf(fpga.getMemory()));
-      fpga.addJumpTablePackets(runRequest);
-      Preconditions.checkState(!fpga.hasDualBlockSram(), "No dual block with the jump table!"); // TODO: blargh
-      if (fpga.hasDualBlockSram()) {
-        runRequest.add("SRAM dual block",
-            Data.valueOf(fpga.getSramDualBlock1()),
-            Data.valueOf(fpga.getSramDualBlock2()),
-            Data.valueOf(fpga.getSramDualBlockDelay()));
-      } else {
-        runRequest.add("SRAM", Data.valueOf(fpga.getSram()));
-      }
+      fpga.addPackets(runRequest);
     }
 
     // set up daisy chain and timing order

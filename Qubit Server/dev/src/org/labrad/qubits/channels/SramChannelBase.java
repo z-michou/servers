@@ -1,10 +1,8 @@
 package org.labrad.qubits.channels;
 
 import com.google.common.collect.Maps;
-import org.labrad.data.Data;
 import org.labrad.qubits.Experiment;
 import org.labrad.qubits.FpgaModelDac;
-import org.labrad.qubits.jumptable.JumpTable;
 import org.labrad.qubits.resources.DacBoard;
 
 import java.util.Map;
@@ -15,11 +13,6 @@ public abstract class SramChannelBase<T> implements SramChannel {
   Experiment expt = null;
   DacBoard board = null;
   FpgaModelDac fpga = null;
-  JumpTable jumpTable = null;
-
-  public SramChannelBase() {
-    jumpTable = new JumpTable();
-  }
 
   @Override
   public String getName() {
@@ -74,22 +67,4 @@ public abstract class SramChannelBase<T> implements SramChannel {
 	public void setStartDelay(int startDelay) {
 		this.getFpgaModel().setStartDelay(startDelay);
 	}
-
-  //
-  // Jump Table
-  //
-  public void clearJumpTable() {
-    jumpTable.clear();
-  }
-  public void addJumpTableEntry(String name, Data data) {
-    jumpTable.addEntry(name, data);
-  }
-  public void setCounters(long[] counters) {
-    jumpTable.setCounters(counters);
-  }
-
-
-  public JumpTable getJumpTable() {
-    return jumpTable;
-  }
 }

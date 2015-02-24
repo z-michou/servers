@@ -76,11 +76,11 @@ public class PreampChannel implements FiberChannel, TimingChannel {
   }
 
   public void startTimer() {
-    fpga.startTimer();
+    fpga.getMemoryController().startTimer();
   }
 
   public void stopTimer() {
-    fpga.stopTimer();
+    fpga.getMemoryController().stopTimer();
   }
 
   // configuration
