@@ -1,10 +1,8 @@
 package org.labrad.qubits;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Future;
-
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.labrad.data.Data;
 import org.labrad.data.Request;
 import org.labrad.qubits.channels.TriggerChannel;
@@ -15,10 +13,10 @@ import org.labrad.qubits.enums.DacTriggerId;
 import org.labrad.qubits.proxies.DeconvolutionProxy;
 import org.labrad.qubits.resources.DacBoard;
 
-import com.google.common.base.Preconditions;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import sun.org.mozilla.javascript.ast.Jump;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Future;
 
 /**
  * Responsible for managing the relation between a DAC's channels and its experiment, as well as producing
