@@ -16,11 +16,13 @@ public class JumpTable {
   private final List<String> entryNames;
   private final List<Data> entryArguments;
   private long[] counters;
+  private int countersUsed;
 
   public JumpTable() {
     entryNames = Lists.newArrayList();
     entryArguments = Lists.newArrayList();
-    counters = null;
+    counters = new long[] {0, 0, 0, 0};   // TODO: get from hardware
+    countersUsed = 0;
   }
 
   /**
@@ -34,13 +36,18 @@ public class JumpTable {
 
   public void addEntry(String name, Data argument) {
     // TODO: type check the name and argument
+    if (name.equals("CYCLE")) {
+      if (countersUsed == 3) {     // TODO: get num counters from hardware
+        throw new RuntimeException("More than 4 counters used in jump table.");
+      } else {
+        counters[countersUsed] = argument.get(2).getWord();
+        argument.get(2).setWord(countersUsed);
+        countersUsed += 1;
+      }
+    }
+
     entryNames.add(name);
     entryArguments.add(argument);
-  }
-
-
-  public long[] getCounters() {
-    return counters;
   }
 
   public void setCounters(long[] counters) {
