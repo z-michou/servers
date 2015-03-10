@@ -4,7 +4,7 @@
 import numpy as np
 from util import littleEndian
 
-JUMP_INDEX_MIN = 1
+JUMP_INDEX_MIN = 0
 JUMP_INDEX_MAX = 15
 IDLE_MIN_CYCLES = 1
 IDLE_MAX_CYCLES = (2 ** 15) - 1
@@ -34,7 +34,7 @@ class JumpEntry(object):
         if SRAM_ADDR_MIN <= addr and addr <= SRAM_ADDR_MAX:
             self._toAddr = addr
         else:
-            raise RuntimeError("Must have %s <= toAddr <= %s" % (SRAM_ADDR_MIN, SRAM_ADDR_MAX))
+            raise RuntimeError("Must have {0} <= toAddr <= {1}, not {2}".format(SRAM_ADDR_MIN, SRAM_ADDR_MAX, addr))
 
     toAddr = property(getToAddr, setToAddr)
 
@@ -45,7 +45,7 @@ class JumpEntry(object):
         if SRAM_ADDR_MIN <= addr and addr <= SRAM_ADDR_MAX:
             self._fromAddr = addr
         else:
-            raise RuntimeError("Must have %s <= fromAddr <= %s" % (SRAM_ADDR_MIN, SRAM_ADDR_MAX))
+            raise RuntimeError("Must have {0} <= fromAddr <= {1}, not {2}".format(SRAM_ADDR_MIN, SRAM_ADDR_MAX, addr))
 
     fromAddr = property(getFromAddr, setFromAddr)
 
@@ -75,7 +75,7 @@ class Operation(object):
         if JUMP_INDEX_MIN <= idx <= JUMP_INDEX_MAX:
             self._jumpIndex = idx
         else:
-            raise RuntimeError("Must have %s < jump index < %s" % (JUMP_INDEX_MIN, JUMP_INDEX_MAX))
+            raise RuntimeError("Must have {0} < jump index < {1}, not {2}".format(JUMP_INDEX_MIN, JUMP_INDEX_MAX, idx))
 
     jumpIndex = property(getJumpIndex, setJumpIndex)
 
@@ -108,8 +108,7 @@ class IDLE(Operation):
         if IDLE_MIN_CYCLES < cycles and cycles < IDLE_MAX_CYCLES:
             self._cycles = cycles
         else:
-            raise RuntimeError(
-                'Number of idle cycles must satisfy: %s < cycles < %s' % (IDLE_MIN_CYCLES, IDLE_MAX_CYCLES))
+            raise RuntimeError('Number of idle cycles must satisfy: {0} < cycles < {1}, not {2}'.format(IDLE_MIN_CYCLES, IDLE_MAX_CYCLES, cycles))
 
     cycles = property(getCycles, setCycles)
 
@@ -236,7 +235,7 @@ class JumpTable(object):
         if SRAM_ADDR_MIN <= addr <= SRAM_ADDR_MAX:
             self._startAddr = addr
         else:
-            raise RuntimeError("Must have %s <= start addr <= %s" % (SRAM_ADDR_MIN, SRAM_ADDR_MAX))
+            raise RuntimeError("Must have {0} <= start addr <= {1}, not {2}".format(SRAM_ADDR_MIN, SRAM_ADDR_MAX, addr))
 
     # TODO: error check counter values
 

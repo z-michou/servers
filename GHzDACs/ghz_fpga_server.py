@@ -220,8 +220,13 @@ from labrad.units import Unit, Value
 from labrad.devices import DeviceServer
 from labrad.server import setting
 
-from .Cleanup import dac, adc, fpga
-from . import jumpTable
+# from .Cleanup import dac, adc, fpga
+# from . import jumpTable
+import servers.GHzDACs.Cleanup.fpga as fpga
+import servers.GHzDACs.Cleanup.dac as dac
+import servers.GHzDACs.Cleanup.adc as adc
+
+import jumpTable
 
 from util import TimedLock, LoggingPacket
 LOGGING_PACKET=False
@@ -1665,10 +1670,10 @@ class FPGAServer(DeviceServer):
             entries.append(jumpTable.JumpEntry(from_address, to_address, jumpTable.CYCLE(counter_idx, jt_idx)))
         elif name == 'NOP':
             from_address = int(arg)
-            entries.append(jumpTable.JumpEntry(from_address, 0, jumpTable.NOP))
+            entries.append(jumpTable.JumpEntry(from_address, 0, jumpTable.NOP()))
         elif name == 'END':
             from_address = int(arg)
-            entries.append(jumpTable.JumpEntry(from_address, 0, jumpTable.END))
+            entries.append(jumpTable.JumpEntry(from_address, 0, jumpTable.END()))
 
     @setting(1083, "Clear Jump Table")
     def clear_jt(self, c):
@@ -1681,8 +1686,9 @@ class FPGAServer(DeviceServer):
     def set_jt_counters(self, c, counters):
         dev = self.selectedDAC(c)
         d = c.setdefault(dev, {})
+        # TODO: don't use isinstance. probably want something like dev.controller_type == 'JUMP TABLE'
         assert(isinstance(dev, dac.DAC_Build13))
-        if len(counters) >= dev.NUM_COUNTERS:
+        if len(counters) > dev.NUM_COUNTERS:
             raise ValueError("More than {0} counters specified: '{1}'".format(dev.NUM_COUNTERS, counters))
         d['jt_counters'] = counters
 

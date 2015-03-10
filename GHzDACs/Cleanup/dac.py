@@ -1,9 +1,9 @@
 import numpy as np
 
-from ...GHzDACs import jumpTable
-from ..Cleanup import fpga
-# import servers.GHzDACs.Cleanup.fpga as fpga
-# import servers.GHzDACs.jumpTable as jumpTable
+# from ...GHzDACs import jumpTable
+# from ..Cleanup import fpga
+import servers.GHzDACs.Cleanup.fpga as fpga
+import servers.GHzDACs.jumpTable as jumpTable
 
 # named functions
 from twisted.internet.defer import inlineCallbacks, returnValue
@@ -11,8 +11,8 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from labrad.devices import DeviceWrapper
 from labrad import types as T
 
-from ..util import littleEndian, TimedLock
-# from servers.GHzDACs.util import littleEndian, TimedLock
+# from ..util import littleEndian, TimedLock
+from servers.GHzDACs.util import littleEndian, TimedLock
 
 
 # CHANGELOG
@@ -984,9 +984,11 @@ class DacRunner_Build13(DacRunner_Build7):
         self.dev = dev
         self.reps = reps
         self.start_delay = start_delay
-        self.jump_table = jumpTable.JumpTable(jumps=jt_entries, counters=jt_counters)  # TODO: start address?
+        # TODO: start address?
+        self.jump_table = jumpTable.JumpTable(startAddr=0, jumps=jt_entries, counters=jt_counters)
         self.sram = sram
         self.nPackets = 0  # we don't expect any packets back
+        self.seqTime = fpga.TIMEOUT_FACTOR * (100 * self.reps) + 1  # TODO: what should we do here? issue #49
 
     def pageable(self):
         return False  # no paging for JT
@@ -1000,8 +1002,8 @@ class DacRunner_Build13(DacRunner_Build7):
 
     def runPacket(self, page, slave, delay, sync):
         """Create run packet."""
-        startDelay = self.startDelay + delay
-        regs = self.dev.regRun(self.reps, page, slave, startDelay,
+        start_delay = self.start_delay + delay
+        regs = self.dev.regRun(self.reps, page, slave, start_delay,
                                blockDelay=None, sync=sync)
         return regs
 
@@ -1207,6 +1209,20 @@ class DAC_Build13(DAC_Build7):
 
 
 fpga.REGISTRY[('DAC', 13)] = DAC_Build13
+
+
+class DAC_Build14(DAC_Build13):
+    RUNNER_CLASS = DacRunner_Build13
+
+    SRAM_LEN = 18432
+    SRAM_WRITE_PKT_LEN = 256
+    SRAM_WRITE_DERPS = SRAM_LEN // SRAM_WRITE_PKT_LEN
+    SRAM_PAGE_LEN = 9216
+    SRAM_DELAY_LEN = 1024
+    SRAM_BLOCK0_LEN = 16384
+    SRAM_BLOCK1_LEN = 2048
+
+fpga.REGISTRY[('DAC', 14)] = DAC_Build14
 
 #Utility functions
 
