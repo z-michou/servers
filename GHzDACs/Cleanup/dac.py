@@ -1036,7 +1036,7 @@ class DAC_Build13(DAC_Build7):
     # resetPll -- OK
 
     @classmethod
-    def regRun(cls, reps, page, slave, delay, blockDelay=None, sync=0):
+    def regRun(cls, reps, page, slave, delay, blockDelay=None, sync=0, loop_delay=0):
         # TODO: probably get rid of page, blockDelay
         if blockDelay is not None:
             raise ValueError("JT board got a non-None blockDelay: ", blockDelay)
@@ -1056,11 +1056,12 @@ class DAC_Build13(DAC_Build7):
         regs[0] = start
         regs[1] = 0  # TODO: what kind of readback do we want?
         regs[13:15] = littleEndian(reps, 2)
+        regs[15:17] = littleEndian(loop_delay, 2)
         regs[43:45] = littleEndian(int(delay), 2)
         regs[45] = sync
         regs[17] = 0  # Which jump table to count activations of
-        regs[51] = 2  # Monitor 0
-        regs[52] = 2  # Monitor 1
+        # regs[51] = 2  # Monitor 0
+        # regs[52] = 2  # Monitor 1
 
         return regs
 

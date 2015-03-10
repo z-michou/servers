@@ -263,6 +263,28 @@ class JumpTable(object):
 
         return data.tostring()
 
+    def pretty_string(self):
+        s = ''
+        data = self.toString()
+        i = 0
+        # counters
+        for j in range(4):
+            s += '{0:02x} {1:02x} {2:02x} {3:02x}'.format(*[ord(x) for x in data[i:i+4]])
+            i += 4
+            s += '\n'
+        # table commands
+        for j in range((528-16)//8):
+            s += '{0:02x} {1:02x} {2:02x}  '.format(*[ord(x) for x in data[i:i+3]])
+            i += 3
+            s += '{0:02x} {1:02x} {2:02x}  '.format(*[ord(x) for x in data[i:i+3]])
+            i += 3
+            s += '{0:02x} {1:02x}  '.format(*[ord(x) for x in data[i:i+2]])
+            i += 2
+            s += '\n'
+        # print i
+        # print len(data)
+        assert(i == len(data))
+        return s
 
 # Simple functions
 
@@ -315,10 +337,10 @@ def testNormal(stopAddr):
     ???
     """
     waveform = np.zeros(256)
-    waveform[4:40] = 0.2
-    waveform[40:44] = 0.1
-    waveform[44:48] = 0.4
-    waveform[48:60] = 0.3
+    waveform[40:120] = 0.2
+    waveform[200:220] = 0.4
+    # waveform[44:48] = 0.4
+    # waveform[48:60] = 0.3
 
     jumpEntries = []
 
