@@ -1,5 +1,6 @@
 package org.labrad.qubits.jumptable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import org.labrad.data.Data;
 import org.labrad.data.Request;
@@ -31,12 +32,14 @@ public class JumpTable {
   public void clear() {
     entryNames.clear();
     entryArguments.clear();
-    counters = null;
+    counters = new long[] {0, 0, 0, 0};   // TODO: get from hardware
   }
 
   public void addEntry(String name, Data argument) {
     // TODO: type check the name and argument
     if (name.equals("CYCLE")) {
+      List<Data> args = argument.getClusterAsList();
+      Preconditions.checkArgument(args.size() == 4, "Cycle must have 4 arguments; currently has " + args.toString());
       if (countersUsed == 3) {     // TODO: get num counters from hardware
         throw new RuntimeException("More than 4 counters used in jump table.");
       } else {
