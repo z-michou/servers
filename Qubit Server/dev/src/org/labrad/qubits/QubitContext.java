@@ -126,7 +126,6 @@ public class QubitContext extends AbstractServerContext {
 
   /**
    * Build a setup packet from a given set of records, using the predefined setup context
-   * @param data
    */
   private Data buildSetupPacket(String server, Data records) {
     return Data.clusterOf(
@@ -419,7 +418,7 @@ public class QubitContext extends AbstractServerContext {
 
     // parse the commands and group them for each fpga
     for (Data cmd : commands) {
-      FastBiasChannel ch = getChannel(cmd.get(0), FastBiasChannel.class);
+      FastBiasFpgaChannel ch = getChannel(cmd.get(0), FastBiasFpgaChannel.class);
       BiasCommandType type = BiasCommandType.fromString(cmd.get(1).getString());
       double voltage = cmd.get(2).getValue();
       fpgas.put(ch.getFpgaModel(), FastBiasCommands.get(type, ch, voltage));
@@ -441,7 +440,7 @@ public class QubitContext extends AbstractServerContext {
     name = "Mem Delay Single",
     doc = "Add a delay to a single channel.")
     public void mem_delay_single(@Accepts({"(s v[us])", "((ss) v[us])"}) Data command) {
-      FastBiasChannel ch = getChannel(command.get(0), FastBiasChannel.class);
+      FastBiasFpgaChannel ch = getChannel(command.get(0), FastBiasFpgaChannel.class);
       double delay_us = command.get(1).getValue();
       getExperiment().addSingleMemoryDelay(ch.getFpgaModel(), delay_us);
       memDirty = true;
@@ -499,6 +498,20 @@ public class QubitContext extends AbstractServerContext {
       getExperiment().addMemSyncDelay();
       memDirty = true;
   }
+
+  //
+  // DC Rack FastBias
+  //
+
+  @Setting(id = 365,
+          name = "Serial Bias",
+          doc = "Set the bias for this fastBias card (controlled by the DC rack server, over serial)")
+  public void serial_bias(@Accepts({"s", "ss"}) Data id, @Accepts("v[V]") double voltage) {
+    FastBiasSerialChannel ch = getChannel(id, FastBiasSerialChannel.class);
+    ch.setBias(voltage);
+  }
+
+
   //
   // Jump Table
   //
@@ -907,6 +920,12 @@ public class QubitContext extends AbstractServerContext {
         setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.getRecords()));
         setupState.add(p.getState());
       }
+    }
+
+    for (FastBiasSerialChannel ch : expt.getChannels(FastBiasSerialChannel.class)) {
+      SetupPacket p = ch.getSetupPacket();
+      setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.getRecords()));
+      setupState.add(p.getState());
     }
 
 

@@ -21,7 +21,7 @@ import com.google.common.base.Preconditions;
  * @author pomalley
  *
  */
-public class AdcChannel implements Channel, TimingChannel, StartDelayChannel {
+public class AdcChannel implements FpgaChannel, TimingChannel, StartDelayChannel {
 	
 	public final int MAX_CHANNELS, DEMOD_CHANNELS_PER_PACKET, TRIG_AMP, LOOKUP_ACCUMULATOR_BITS, DEMOD_TIME_STEP;
 	

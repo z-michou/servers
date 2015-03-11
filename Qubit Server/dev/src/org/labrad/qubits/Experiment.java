@@ -6,10 +6,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.labrad.data.Data;
-import org.labrad.qubits.channels.AdcChannel;
-import org.labrad.qubits.channels.Channel;
-import org.labrad.qubits.channels.PreampChannel;
-import org.labrad.qubits.channels.TimingChannel;
+import org.labrad.qubits.channels.*;
 import org.labrad.qubits.enums.DacTriggerId;
 import org.labrad.qubits.mem.MemoryCommand;
 import org.labrad.qubits.resources.AdcBoard;
@@ -55,7 +52,7 @@ public class Experiment {
     Map<DacBoard, FpgaModel> boards = Maps.newHashMap();
 
     // build models for all required resources
-    for (Channel ch : getChannels()) {
+    for (FpgaChannel ch : getChannels(FpgaChannel.class)) {
       DacBoard board = ch.getDacBoard();
       FpgaModel fpga = boards.get(board);
       if (fpga == null) {
@@ -74,6 +71,10 @@ public class Experiment {
       // connect this channel to the experiment and fpga model
       ch.setExperiment(this);
       ch.setFpgaModel(fpga);
+    }
+
+    for (FastBiasSerialChannel ch : getChannels(FastBiasSerialChannel.class)) {
+      // TODO: how to represent DC rack hardware in the experiment?
     }
 
     // build lists of FPGA boards that have or don't have a timing channel

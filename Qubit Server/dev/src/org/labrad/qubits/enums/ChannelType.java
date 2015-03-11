@@ -11,6 +11,7 @@ public enum ChannelType {
   TRIGGER("trigger"),
   PREAMP("preamp"),
   FASTBIAS("fastbias"),
+  FASTBIASSERIAL("fastbiasserial"),
   ADC("adc");
 
   private final String name;

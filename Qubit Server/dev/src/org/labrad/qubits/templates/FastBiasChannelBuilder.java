@@ -1,12 +1,12 @@
 package org.labrad.qubits.templates;
 
-import java.util.List;
-
 import org.labrad.qubits.channels.Channel;
-import org.labrad.qubits.channels.FastBiasChannel;
+import org.labrad.qubits.channels.FastBiasFpgaChannel;
 import org.labrad.qubits.enums.DcRackFiberId;
 import org.labrad.qubits.resources.FastBias;
 import org.labrad.qubits.resources.Resources;
+
+import java.util.List;
 
 public class FastBiasChannelBuilder extends ChannelBuilderBase {
   private final String name;
@@ -22,7 +22,7 @@ public class FastBiasChannelBuilder extends ChannelBuilderBase {
   public Channel build() {
     String boardName = params.get(0);
     String channel = params.get(1);
-    FastBiasChannel fb = new FastBiasChannel(name);
+    FastBiasFpgaChannel fb = new FastBiasFpgaChannel(name);
     FastBias board = resources.get(boardName, FastBias.class);
     fb.setFastBias(board);
     fb.setBiasChannel(DcRackFiberId.fromString(channel));

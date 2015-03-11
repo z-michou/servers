@@ -25,6 +25,7 @@ public class ChannelBuilders {
       case FASTBIAS: return new FastBiasChannelBuilder(name, params, resources);
       case PREAMP: return new PreampChannelBuilder(name, params, resources);
       case ADC: return new AdcChannelBuilder(name, params, resources);
+      case FASTBIASSERIAL: return new FastBiasSerialChannelBuilder(name, params, resources);
       default: throw new RuntimeException("Unknown channel type: " + type);
     }
   }
