@@ -504,9 +504,10 @@ public class QubitContext extends AbstractServerContext {
   //
 
   @Setting(id = 365,
-          name = "Serial Bias",
+          name = "Config Bias Voltage",
           doc = "Set the bias for this fastBias card (controlled by the DC rack server, over serial)")
-  public void serial_bias(@Accepts({"s", "ss"}) Data id, @Accepts("v[V]") double voltage) {
+  public void config_bias_voltage(@Accepts({"s", "ss"}) Data id, @Accepts("v[V]") double voltage) {
+    // TODO: create a mem_bias call if the channel is a FastBiasFpga channel.
     FastBiasSerialChannel ch = getChannel(id, FastBiasSerialChannel.class);
     ch.setBias(voltage);
   }
@@ -924,8 +925,10 @@ public class QubitContext extends AbstractServerContext {
 
     for (FastBiasSerialChannel ch : expt.getChannels(FastBiasSerialChannel.class)) {
       SetupPacket p = ch.getSetupPacket();
-      setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.getRecords()));
-      setupState.add(p.getState());
+      if (p != null) {
+        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.getRecords()));
+        setupState.add(p.getState());
+      }
     }
 
 

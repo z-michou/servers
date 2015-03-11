@@ -11,9 +11,11 @@ public class FastBiasSerialChannel extends FastBiasChannel {
 
   private int dcRackCard;
   private double voltage;
+  private boolean configured;
 
   public FastBiasSerialChannel(String name) {
     super(name);
+    configured = false;
   }
 
   public void setDCRackCard(int dcRackCard) {
@@ -22,21 +24,24 @@ public class FastBiasSerialChannel extends FastBiasChannel {
 
   public void setBias(double voltage) {
     this.voltage = voltage;
+    configured = true;
   }
 
   public SetupPacket getSetupPacket() {
-    Data data = Data.ofType("(s)(swswwv)");
+    if (!configured) {
+      return null;
+    }
+    Data data = Data.ofType("(s)(s(wswwv[V]))");
     data.get(0).setString("Select Device", 0);
     data.get(1).setString("channel_set_voltage", 0)
-            .setWord(dcRackCard, 1)
-            .setString(getDcFiberId().toString())
-            .setWord(0)  // always use fine, never use coarse
-            .setWord(1)  // "always 1 with FINE" -- the DC Rack server source code
-            .setValue(voltage);
+            .setWord(dcRackCard, 1, 0)
+            .setString(getDcFiberId().toString().toUpperCase(), 1, 1)
+            .setWord(0, 1, 2)  // always use fine, never use coarse
+            .setWord(1, 1, 3)  // "always 1 with FINE" -- the DC Rack server source code
+            .setValue(voltage, 1, 4);
 
     String state = String.format("%d%s: voltage=%f",
             dcRackCard, getDcFiberId().toString(), voltage);
-
     return new SetupPacket(state, data);
   }
 }
