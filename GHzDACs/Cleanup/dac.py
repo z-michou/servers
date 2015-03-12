@@ -970,7 +970,7 @@ fpga.REGISTRY[('DAC', 11)] = DAC_Build11
 
 class DacRunner_Build13(DacRunner_Build7):
     # noinspection PyMissingConstructor
-    def __init__(self, dev, reps, start_delay, jt_entries, jt_counters, sram):
+    def __init__(self, dev, reps, start_delay, jt_entries, jt_counters, sram, loop_delay):
         """
 
         :type dev: DAC_Build13
@@ -984,6 +984,7 @@ class DacRunner_Build13(DacRunner_Build7):
         self.dev = dev
         self.reps = reps
         self.start_delay = start_delay
+        self.loop_delay = loop_delay
         # TODO: start address?
         self.jump_table = jumpTable.JumpTable(startAddr=0, jumps=jt_entries, counters=jt_counters)
         self.sram = sram
@@ -1004,7 +1005,7 @@ class DacRunner_Build13(DacRunner_Build7):
         """Create run packet."""
         start_delay = self.start_delay + delay
         regs = self.dev.regRun(self.reps, page, slave, start_delay,
-                               blockDelay=None, sync=sync)
+                               blockDelay=None, sync=sync, loop_delay=self.loop_delay)
         return regs
 
 
@@ -1022,8 +1023,9 @@ class DAC_Build13(DAC_Build7):
         jt_entries = info['jt_entries']
         jt_counters = info['jt_counters']
         start_delay = info.get('startDelay', 0)
+        loop_delay = info.get('loop_delay', 0)
         sram = info.get('sram', None)
-        runner = self.RUNNER_CLASS(self, reps, start_delay, jt_entries, jt_counters, sram)
+        runner = self.RUNNER_CLASS(self, reps, start_delay, jt_entries, jt_counters, sram, loop_delay=loop_delay)
         return runner
 
     # let's check the various registry functions.
