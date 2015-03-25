@@ -142,7 +142,7 @@ class DataVault(LabradServer):
         if 'dataset' not in c:
             raise errors.NoDatasetError()
         session = self.getSession(c)
-        return session.datasets[c['dataset']]
+        return session.openDataset(c['dataset'])
 
     # session signals
     onNewDir = Signal(543617, 'signal: new dir', 's')
@@ -215,7 +215,10 @@ class DataVault(LabradServer):
                 _session = self.session_store.get(temp) # touch the session
         if c['path'] != temp:
             # stop listening to old session and start listening to new session
-            self.session_store.get(c['path']).listeners.remove(c.ID)
+            try:
+                self.session_store.get(c['path']).listeners.remove(c.ID)
+            except KeyError:
+                pass
             self.session_store.get(temp).listeners.add(c.ID)
             c['path'] = temp
         return c['path']
