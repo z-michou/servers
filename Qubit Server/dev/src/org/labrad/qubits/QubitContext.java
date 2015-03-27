@@ -932,8 +932,8 @@ public class QubitContext extends AbstractServerContext {
     }
 
     for (FastBiasSerialChannel ch : expt.getChannels(FastBiasSerialChannel.class)) {
-      SetupPacket p = ch.getSetupPacket();
-      if (p != null) {
+      if (ch.hasSetupPacket()) {
+        SetupPacket p = ch.getSetupPacket();
         setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.getRecords()));
         setupState.add(p.getState());
       }
