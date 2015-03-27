@@ -229,72 +229,6 @@ def interpol_cubic(h,x2,fill_value=None):
         return np.array(yout)          
     return func(x2)
 
-    
-def interpol1d_cubic_S(h,x2):
-    """Cubic interpolator. Returns the values in in the same way interpol. Can deal with complex input.
-    Uses linear interpolation at the edges, and returns the values at the edges outside of the range. RB."""
-
-    n=np.alen(h)
-    x=np.arange(n)
-    def func(xdet):
-        dx=x[1]-x[0]
-        yout=[]
-        xmin=min(x)
-        xmax=max(x)
-        idxOld=None
-        xdetlen=np.alen(xdet)
-        for j in np.arange(xdetlen):
-            if xdetlen==1:
-                xdetelement=xdet
-            else:
-                xdetelement=xdet[j]          
-            if xdetelement>=xmax:
-                xdetelement=xmax
-                if dx>0:
-                    idx=np.alen(x)-1
-                else:
-                    idx=0
-                yout.append(h[idx])
-            elif xdetelement<=xmin:
-                xdetelement=xmin
-                if dx>0:
-                    idx=0
-                else:
-                    idx=np.alen(x)-1
-                yout.append(h[idx])
-            else:
-                xstart=x[0]
-                xend=x[-1]
-                idx = int(np.fix((xdetelement - xstart) / dx))
-                #idx=int(np.fix(xdetelement))
-                if idx>=1 and (idx+2)<np.alen(x):
-                    #cubic interpol                
-                    if idx != idxOld:
-                        hp2=h[idx+2]
-                        hp1=h[idx+1]
-                        hp0=h[idx]
-                        hm1=h[idx-1]     
-                        d=hp0
-                        c=(hp1-hm1)/2.
-                        b=(-hp2+4*hp1-5*hp0+2*hm1)/2.
-                        a=(hp2-3*hp1+3*hp0-hm1)/2.
-                        idxOld=idx
-                    xi=(xdetelement-x[idx])/dx                        
-                    yout.append(a*xi**3 + b*xi**2 + c*xi+d)
-                else:
-                    #linear interpol
-                    if idx==(np.alen(x)-1):
-                        direction=-1
-                    else:
-                        direction=1
-                    x1=x[idx]
-                    x2=x[idx+direction]
-                    h1=h[idx]
-                    h2=h[idx+direction]
-                    yout.append((h2-h1)/(x2-x1)*(xdetelement-x1)+h1)
-        return np.array(yout)
-    return func(x2)
-
 
 def interpol(signal, x, extrapolate=False):
     """
@@ -655,7 +589,7 @@ class IQcorrection:
 
 
     def DACify(self, carrierFreq, i, q=None, loop=False, rescale=False,
-               zerocor=True, deconv=True, iqcor=True, zipSRAM=True,zeroBoards=False):
+               zerocor=True, deconv=True, iqcor=True, zipSRAM=True):
         """
         Computes a SRAM sequence from I and Q values in the range from
         -1 to 1.  If Q is omitted, the imaginary part of I sets the Q
@@ -734,12 +668,12 @@ class IQcorrection:
             i = np.fft.fft(i-background,n=nfft)
             i[0] += background * nfft
         return self.DACifyFT(carrierFreq, i, n=n, loop=loop, rescale=rescale,
-               zerocor=zerocor, deconv=deconv, iqcor=iqcor, zipSRAM=zipSRAM,zeroBoards=zeroBoards)
+               zerocor=zerocor, deconv=deconv, iqcor=iqcor, zipSRAM=zipSRAM)
 
     
     def DACifyFT(self, carrierFreq, signal, t0=0, n=8192, loop=False,
                  rescale=False, zerocor=True, deconv=True, iqcor=True,
-                 zipSRAM=True,zeroBoards=False):
+                 zipSRAM=True):
         """
         Works like DACify but takes the Fourier transform of the
         signal as input instead of the signal itself. Because of that
@@ -854,10 +788,11 @@ class IQcorrection:
         
         #due to deconvolution, the signal to put in the dacs can be nonzero at the end of a sequence with even a short pulse. 
         #This nonzero value persists, even when running the board with an empty envelope. To remove this, the first and last 4 (FOUR) values must be set.
-        if zeroBoards:
-            i[-4:]=zeroI
-            q[-4:]=zeroQ
-        
+        i[:4] = zeroI
+        i[-4:] = zeroI
+        q[:4] = zeroQ
+        q[-4:] = zeroQ
+
         if not rescale:
             clippedI = np.clip(i,-0x2000,0x1FFF)
             clippedQ = np.clip(q,-0x2000,0x1FFF)
@@ -1084,8 +1019,8 @@ class DACcorrection:
         
         
         
-    def DACify(self, signal, loop=False, rescale=False, fitRange=True,zeroBoards=False,
-               zerocor=True, deconv=True, volts=True,borderValues=None):
+    def DACify(self, signal, loop=False, rescale=False, fitRange=True,
+               zerocor=True, deconv=True, volts=True):
         """
         Computes a SRAM sequence for one DAC channel. If volts is
         True, the input is expected in volts. Otherwise inputs of -1
@@ -1156,13 +1091,13 @@ class DACcorrection:
         signal_FD = np.fft.rfft(signal-background, n=nfft) #FT the input
         signal = self.DACifyFT(signal_FD, t0=0, n=n, nfft=nfft, offset=background,
                              loop=loop,
-                             rescale=rescale, fitRange=fitRange, deconv=deconv,zeroBoards=zeroBoards,
-                             zerocor=zerocor, volts=volts,borderValues=borderValues)
+                             rescale=rescale, fitRange=fitRange, deconv=deconv,
+                             zerocor=zerocor, volts=volts)
         return signal
 
     def DACifyFT(self, signal, t0=0, n=8192, offset=0, nfft=None, loop=False,
-                 rescale=False, fitRange=True, deconv=True, zerocor=True, zeroBoards=False,
-                 volts=True, borderValues=None, maxvalueZ=5.0):
+                 rescale=False, fitRange=True, deconv=True, zerocor=True,
+                 volts=True, maxvalueZ=5.0):
         """
         Works like DACify but takes the Fourier transform of the
         signal as input instead of the signal. n gives the number of
@@ -1175,6 +1110,7 @@ class DACcorrection:
 
         # TODO: Remove this hack that strips units
         decayRates = np.array([x['GHz'] for x in self.decayRates])
+        decayAmplitudes = self.decayAmplitudes
 
         #read DAC zeros
         if zerocor:
@@ -1199,7 +1135,7 @@ class DACcorrection:
         elif signal is None:
             signal = np.int32(np.round(fullscale*offset+zero))
             if fitRange:
-                signal = np.clip(signal,-0x2000,0x1FFF)
+                signal = np.clip(signal, -0x2000,0x1FFF)
                 signal = np.uint32(signal & 0x3FFF)
             return np.resize(signal, n)
         else:
@@ -1226,7 +1162,6 @@ class DACcorrection:
                 # pulse correction
                 for correction in self.correction:
                     l = np.alen(correction)
-                    #precalc *= interpol(correction, freqs*2.0*(l-1),extrapolate=True) #orig. Fast
                     precalc *= interpol_cubic(correction, freqs*2.0*(l-1)) #cubic, as fast as linear interpol
                     
                 #decay times:
@@ -1235,11 +1170,7 @@ class DACcorrection:
                 # settlingRates = [0.012]    #rate is in GHz, (1/ns)
                 if np.alen(decayRates):
                     freqs = 2j*np.pi*freqs
-                    #print "correction: decayAmplitudes: %s, type: %s" % (self.decayAmplitudes, type(self.decayAmplitudes))
-                    #print "correction: decayRates: %s, type: %s" % (self.decayRates, type(self.decayRates))
-                    #print "correction: freqs: %s, shape: %s, type: %s" % (freqs, freqs.shape, type(freqs))
-
-                    precalc /= (1.0 + np.sum(self.decayAmplitudes[:,None] * freqs[None,:] / (freqs[None,:] + decayRates[:,None]), axis=0))
+                    precalc /= (1.0 + np.sum(decayAmplitudes[:, None] * freqs[None, :] / (freqs[None, :] + decayRates[:, None]), axis=0))
 
                 
                 #the correction window can have very large amplitudes, therefore the time domain signal can have large oscillations which will be truncated digitally, 
@@ -1247,7 +1178,7 @@ class DACcorrection:
                 #Here, we apply a maximum value, i.e. truncate the value, but keep the phase. This way we still have a partial correction, within the limits of the boards. 
                 #Doing it this way also helps a lot with the waveforms being scalable.
                 if maxvalueZ:
-                    precalc = precalc * (1.0 * (abs(precalc)<=maxvalueZ))   +  np.exp(1j*np.angle(precalc))*maxvalueZ * 1.0 * (abs(precalc)>maxvalueZ)           
+                    precalc = precalc * (1.0 * (abs(precalc)<=maxvalueZ)) + np.exp(1j*np.angle(precalc))*maxvalueZ * 1.0 * (abs(precalc) > maxvalueZ)
                 
                 self.precalc = precalc
             signal *= self.precalc
@@ -1260,11 +1191,10 @@ class DACcorrection:
         
         #due to deconvolution, the signal to put in the dacs can be nonzero at the end of a sequence with even a short pulse. 
         #This nonzero value persists, even when running the board with an empty envelope. To remove this, the first and last 4 (FOUR) values must be set.
-        if zeroBoards:
-            if borderValues is not None:
-                signal[0:4]=borderValues[0]
-                signal[-4:]=borderValues[1]
-        
+
+        signal[0:4] = np.mean(signal[0:4])
+        signal[-4:] = np.mean(signal[-4:])
+
         if rescale:
             print 'rescale in single DAC deconv'
             rescale = np.min([1.0,
@@ -1288,8 +1218,7 @@ class DACcorrection:
         dithering[-4:] = 0.0
     
         signal = np.round(1.0*signal * fullscale + zero + dithering).astype(np.int32)
-        #print "correction: signal: %s, shape: %s, type: %s" % (signal, signal.shape, type(signal))
-   
+
         if not rescale:
             if (np.max(signal) > 0x1FFF) or (np.min(signal) < -0x2000):
                 print 'Corrected Z signal beyond DAC range, clipping'
