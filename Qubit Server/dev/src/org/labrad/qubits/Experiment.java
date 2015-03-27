@@ -244,6 +244,9 @@ public class Experiment {
   private DacTriggerId autoTriggerId = null;
   private int autoTriggerLen = 0;
 
+  private double loopDelay;
+  private boolean loopDelayConfigured = false;
+
   /**
    * Clear all configuration that has been set for this experiment
    */
@@ -263,6 +266,9 @@ public class Experiment {
         ch.clearConfig();
       }
     }
+
+    // de-configure loopDelay
+    loopDelayConfigured = false;
   }
 
 
@@ -300,6 +306,18 @@ public class Experiment {
 
   public void setTimingOrder(List<TimingOrderItem> to) {
     timingOrder = new ArrayList<TimingOrderItem>(to);
+  }
+
+  public void configLoopDelay(double loopDelay) {
+    this.loopDelay = loopDelay;
+    this.loopDelayConfigured = true;
+  }
+
+  public boolean isLoopDelayConfigured() {
+    return loopDelayConfigured;
+  }
+  public double getLoopDelay() {
+    return loopDelay;
   }
 
   /**

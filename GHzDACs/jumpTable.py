@@ -357,7 +357,7 @@ def testNormal(stopAddr):
 
 
 def testNormalLong(stopAddr):
-    waveform = np.sin(2*np.pi/256*20np.arange(256))
+    waveform = 0.0625*np.sin(2*np.pi/256*8*np.arange(256))
     jumpEntries = []
 
     # End execution
@@ -370,6 +370,7 @@ def testNormalLong(stopAddr):
     table.jumps = jumpEntries
 
     return waveform*2**14, table
+
 
 def testIdle(cycles):
     """Single high sample, followed by idle, followed by single high sample

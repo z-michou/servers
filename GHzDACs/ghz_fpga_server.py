@@ -613,7 +613,7 @@ class BoardGroup(object):
         # setupState is a set
         setupPkts.extend(pkt for pkt, state in boardSetupPkts)
         setupState.update(state for pkt, state in boardSetupPkts)
-        
+
         try:
             yield self.pipeSemaphore.acquire()
             try:
@@ -632,7 +632,7 @@ class BoardGroup(object):
                 try:
                     yield loadDone # wait until load is finished.
                     yield runNow # Wait for acquisition of the run lock.
-                    
+
                     # Set the number of triggers needed before we can actually
                     # run. We expect to get one trigger for each board that
                     # had to run and return data. This is the number of
@@ -642,7 +642,7 @@ class BoardGroup(object):
                     bothPkt['nTriggers'] = self.prevTriggers
                     # store the number of triggers for the next run
                     self.prevTriggers = len(runners)
-                    
+
                     # If the passed in setup state setupState, or the current
                     # actual setup state, self.setupState are empty, we need
                     # to set things up. Also if the desired setup state isn't
@@ -679,7 +679,7 @@ class BoardGroup(object):
                     else:
                         # if this fails, something BAD happened!
                         r = yield bothPkt.send()
-                    
+
                     # Keep track of how long the packet waited before being
                     # able to run.
                     # XXX How does this work? Why is r['nTriggers'] the wait
@@ -688,9 +688,9 @@ class BoardGroup(object):
                     self.runWaitTimes.append(r['nTriggers']['s'])
                     if len(self.runWaitTimes) > 100:
                         self.runWaitTimes.pop(0)
-                    
+
                     yield self.readLock.acquire() # wait for our turn to read
-                    
+
                     # stage 3: collect
                     # Collect appropriate number of packets and then trigger
                     # the master context.
@@ -725,7 +725,7 @@ class BoardGroup(object):
             finally:
                 for pageLock in pageLocks:
                     pageLock.release()
-            
+
             # check for a timeout and recover if necessary
             if not all(success for success, result in results):
                 for success, result in results:
@@ -1692,7 +1692,13 @@ class FPGAServer(DeviceServer):
             raise ValueError("More than {0} counters specified: '{1}'".format(dev.NUM_COUNTERS, counters))
         d['jt_counters'] = counters
 
-
+    @setting(1085, "Loop Delay", delay='v[us]')
+    def loop_delay(self, c, delay):
+        """ Set the loop delay (delay between stats). Gets truncated to nearest integer microsecond.
+        """
+        dev = self.selectedDAC(c)
+        d = c.setdefault(dev, {})
+        d['loop_delay'] = int(delay['us'])
     
     @setting(1100, 'DAC I2C', data='*w', returns='*w')
     def dac_i2c(self, c, data):

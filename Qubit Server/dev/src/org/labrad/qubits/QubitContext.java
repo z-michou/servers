@@ -504,11 +504,20 @@ public class QubitContext extends AbstractServerContext {
   //
 
   @Setting(id = 365,
-          name = "Serial Bias",
+          name = "Config Bias Voltage",
           doc = "Set the bias for this fastBias card (controlled by the DC rack server, over serial)")
-  public void serial_bias(@Accepts({"s", "ss"}) Data id, @Accepts("v[V]") double voltage) {
+  public void config_bias_voltage(@Accepts({"s", "ss"}) Data id, String dac, @Accepts("v[V]") double voltage) {
+    // TODO: create a mem_bias call if the channel is a FastBiasFpga channel.
     FastBiasSerialChannel ch = getChannel(id, FastBiasSerialChannel.class);
+    ch.setDac(dac);
     ch.setBias(voltage);
+  }
+
+  @Setting(id = 366,
+          name = "Config loop delay",
+          doc = "Set the delay between stats. This used to be called 'biasOperateSettling'.")
+  public void config_loop_delay(@Accepts("v[us]") double loop_delay) {
+    getExperiment().configLoopDelay(loop_delay);
   }
 
 
@@ -924,8 +933,10 @@ public class QubitContext extends AbstractServerContext {
 
     for (FastBiasSerialChannel ch : expt.getChannels(FastBiasSerialChannel.class)) {
       SetupPacket p = ch.getSetupPacket();
-      setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.getRecords()));
-      setupState.add(p.getState());
+      if (p != null) {
+        setupPackets.add(buildSetupPacket(Constants.DC_RACK_SERVER, p.getRecords()));
+        setupState.add(p.getState());
+      }
     }
 
 
@@ -969,6 +980,10 @@ public class QubitContext extends AbstractServerContext {
     // set up daisy chain and timing order
     runRequest.add("Daisy Chain", Data.listOf(expt.getFpgaNames(), Setters.stringSetter));
     runRequest.add("Timing Order", Data.listOf(expt.getTimingOrder(), Setters.stringSetter));
+
+    if (getExperiment().isLoopDelayConfigured()) {
+      runRequest.add("Loop Delay", Data.valueOf(getExperiment().getLoopDelay(), "us"));
+    }
 
     // run the sequence
     runIndex = runRequest.addRecord("Run Sequence",
