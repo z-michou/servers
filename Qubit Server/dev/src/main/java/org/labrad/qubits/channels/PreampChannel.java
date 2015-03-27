@@ -139,4 +139,14 @@ public class PreampChannel implements FiberChannel, TimingChannel {
     // this is a bit of a kludge, only applies to ADCs.
     return -1;
   }
+
+  @Override
+  public DcRackFiberId getDcFiberId() {
+    return this.getPreampChannel();
+  }
+
+  @Override
+  public void setBiasChannel(DcRackFiberId channel) {
+    this.setPreampChannel(channel);
+  }
 }
