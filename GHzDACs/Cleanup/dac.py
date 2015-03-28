@@ -1227,6 +1227,8 @@ class DAC_Build14(DAC_Build13):
 
 fpga.REGISTRY[('DAC', 14)] = DAC_Build14
 
+fpga.REGISTRY[('DAC', 15)] = DAC_Build14
+
 #Utility functions
 
 def maxSRAM(cmds):
