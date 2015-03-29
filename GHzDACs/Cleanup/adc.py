@@ -1052,8 +1052,9 @@ class ADC_Build7(ADC_Branch2):
         a = np.fromstring(resp, dtype='<u1')
         return {
             'build': a[0],
-            'noPllLatch': a[1]&1 == 1,
-            'trigCount': a[2] + a[3]<<8,
+            'noPllLatch': bool(a[1]&1 == 1),
+            # 'trigCount': a[2] + a[3]<<8,
+            'executionCounter': a[2] + a[3]<<8,
             'nPackets': a[4],
             'badPackets': a[5]
             } 

@@ -348,7 +348,7 @@ class DcRackWrapper(DeviceWrapper):
 
 
 class DcRackServer(DeviceServer):
-    deviceName = 'DC Rack Server'
+    # deviceName = 'DC Rack Server'
     name = 'DC Rack Server'
     deviceWrapper = DcRackWrapper
 
@@ -357,7 +357,7 @@ class DcRackServer(DeviceServer):
         print 'loading config info...',
         yield self.loadConfigInfo()
         print 'done.'
-        yield DeviceServer.initServer(self)
+        DeviceServer.initServer(self)
 
     @inlineCallbacks
     def loadConfigInfo(self):

@@ -989,7 +989,7 @@ class DacRunner_Build13(DacRunner_Build7):
         self.jump_table = jumpTable.JumpTable(startAddr=0, jumps=jt_entries, counters=jt_counters)
         self.sram = sram
         self.nPackets = 0  # we don't expect any packets back
-        self.seqTime = fpga.TIMEOUT_FACTOR * (100 * self.reps) + 1  # TODO: what should we do here? issue #49
+        self.seqTime = fpga.TIMEOUT_FACTOR * (100 * self.reps) * 10**-6 + 1  # TODO: what should we do here? issue #49
 
     def pageable(self):
         return False  # no paging for JT
