@@ -262,72 +262,6 @@ class SimpleHDF5Data(object):
     def hasMore(self, pos):
         return pos < len(self)
 
-class BinaryData(object):
-    """
-    Data backed by a binary-formatted file.
-
-    The file is memory-mapped to take advantage of os-level memory paging.
-    """
-
-    def __init__(self, filename, cols):
-        self._file = SelfClosingFile(open_args=(filename, 'a+b'))
-        self._file.onClose(self._close_map)
-        self.cols = cols
-        self.rowBytes = cols * 8
-
-    @property
-    def file(self):
-        return self._file()
-
-    @property
-    def data(self):
-        if not hasattr(self, '_mmap'):
-            f = self.file
-            self._mmap = mmap.mmap(f.fileno(), self._file.size())
-        return self._mmap
-
-    def _close_map(self, *args):
-        if hasattr(self, '_mmap'):
-            self._mmap.close()
-            del self._mmap
-
-    def addData(self, data):
-        data = np.asarray(data, dtype='>f8')
-
-        # reshape single row
-        if len(data.shape) == 1:
-            data.shape = (1, data.size)
-
-        # check row length
-        if data.shape[-1] != self.cols:
-            raise BadDataError(self.cols, data.shape[-1])
-
-        # append data to memory map
-        bs = data.tostring('C')
-        f = self.file
-        f.seek(self._file.size())
-        f.write(bs)
-        f.flush()
-        self._close_map() # close the mmap since we can't resize. TODO: check whether we can mremap
-
-    def getData(self, limit, start):
-        size = self._file.size()
-        if size == 0:
-            return [], 0
-        startOfs = start * self.rowBytes
-        if limit is None:
-            bs = self.data[startOfs:]
-        else:
-            endOfs = startOfs + limit * self.rowBytes
-            bs = self.data[startOfs:endOfs]
-        data = np.reshape(np.fromstring(bs, dtype='>f8'), [-1, self.cols])
-        # nrows should be zero for an empty row
-        nrows = len(data) if data.size > 0 else 0
-        return data, start + nrows
-
-    def hasMore(self, pos):
-        nrows = self._file.size() / self.rowBytes
-        return pos < nrows
 
 def create_backend(filename, cols):
     """Make a data object that manages in-memory and on-disk storage for a dataset.
@@ -345,7 +279,5 @@ def create_backend(filename, cols):
             return CsvNumpyData(csv_file, cols)
         else:
             return CsvListData(csv_file, cols)
-    elif os.path.exists(bin_file):
-        return BinaryData(bin_file, cols)
     else:
         return SimpleHDF5Data(hdf5_file, cols)
