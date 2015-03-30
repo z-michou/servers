@@ -1,4 +1,5 @@
 from datetime import datetime
+import time
 
 import numpy as np
 import pytest
@@ -94,6 +95,144 @@ def test_parameters(dv):
         sb, tb = T.flatten(b)
         assert ta == tb
         assert sa == sb
+
+
+# Test asynchronous notification signals.
+# These signals are used by the grapher to do
+# efficient UI updates without polling.
+
+def test_signal_new_dir(dv):
+    """Check messages sent when a new directory is created."""
+    dirname = 'msg_test_dir' + str(time.time())
+
+    msg_id = 123
+    dv.signal__new_dir(msg_id)
+
+    messages = []
+    def on_message(ctx, msg):
+        messages.append((ctx, msg))
+
+    p = dv._cxn._backend.cxn
+    p.addListener(on_message, source=dv.ID, ID=msg_id)
+
+    dv.mkdir(dirname)
+    time.sleep(0.5)
+
+    assert len(messages) == 1
+
+def test_signal_new_dataset(dv):
+    """Check messages sent when a new dataset is created."""
+    name = 'msg_test_dataset'
+
+    msg_id = 123
+    dv.signal__new_dataset(msg_id)
+
+    messages = []
+    def on_message(ctx, msg):
+        messages.append((ctx, msg))
+
+    p = dv._cxn._backend.cxn
+    p.addListener(on_message, source=dv.ID, ID=msg_id)
+
+    dv.new(name, ['x'], ['y'])
+    time.sleep(0.5)
+
+    assert len(messages) == 1
+
+def test_signal_tags_updated(dv):
+    """Check messages sent when tags on directories or datasets are updated."""
+    dirname = 'msg_test_dir' + str(time.time())
+
+    msg_id = 123
+    dv.signal__tags_updated(msg_id)
+
+    messages = []
+    def on_message(ctx, msg):
+        messages.append((ctx, msg))
+
+    p = dv._cxn._backend.cxn
+    p.addListener(on_message, source=dv.ID, ID=msg_id)
+
+    dv.mkdir(dirname)
+    dv.update_tags('test', [dirname], [])
+    time.sleep(0.5)
+
+    assert len(messages) == 1
+
+def test_signal_data_available(dv):
+    """Check that we get messages when new parameters are added to a data set."""
+    msg_id = 123
+
+    messages = []
+    def on_message(ctx, msg):
+        messages.append((ctx, msg))
+
+    path, name = dv.new('test', ['x'], ['y'])
+
+    # open a second connection which we'll use to read data added by the other
+    with labrad.connect() as cxn:
+        reader = setup_dv(cxn)
+        reader.signal__data_available(msg_id)
+
+        p = reader._cxn._backend.cxn
+        p.addListener(on_message, source=reader.ID, ID=msg_id)
+
+        reader.cd(path)
+        reader.open(name)
+
+        dv.add([1, 2])
+        time.sleep(0.1)
+        assert len(messages) == 1
+
+        dv.add([3, 4])
+        time.sleep(0.1)
+        assert len(messages) == 1 # we should not get another message until we get the data
+
+        data = reader.get()
+        time.sleep(0.1)
+
+        dv.add([5, 6])
+        time.sleep(0.1)
+        assert len(messages) == 2 # now we get a new message
+
+def test_signal_new_parameter(dv):
+    """Check messages sent when parameter is added to a dataset."""
+    msg_id = 123
+
+    messages = []
+    def on_message(ctx, msg):
+        messages.append((ctx, msg))
+
+    path, name = dv.new('test', ['x'], ['y'])
+
+    # open a second connection which we'll use to read params added by the other
+    with labrad.connect() as cxn:
+        reader = setup_dv(cxn)
+        reader.signal__new_parameter(msg_id)
+
+        p = reader._cxn._backend.cxn
+        p.addListener(on_message, source=reader.ID, ID=msg_id)
+
+        reader.cd(path)
+        reader.open(name)
+
+        reader.parameters() # get the list of parameters to signal our interest
+
+        dv.add_parameter('a', 1)
+        time.sleep(0.1)
+        assert len(messages) == 1
+
+        dv.add_parameter('b', 2)
+        time.sleep(0.1)
+        assert len(messages) == 1 # no new message until we get parameters
+
+        params = reader.get_parameters()
+        time.sleep(0.1)
+
+        dv.add_parameters((('c', 3), ('d', 4)))
+        time.sleep(0.1)
+        assert len(messages) == 2 # just one message from multiple parameters
+
 
 if __name__ == "__main__":
     pytest.main(['-v', __file__])
