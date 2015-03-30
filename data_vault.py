@@ -119,7 +119,8 @@ class DataVault(LabradServer):
         # start in the root session
         c['path'] = ['']
         # start listening to the root session
-        self.session_store.get(['']).listeners.add(c.ID)
+        c['session'] = self.session_store.get([''])
+        c['session'].listeners.add(c.ID)
 
     def expireContext(self, c):
         """Stop sending any signals to this context."""
@@ -135,14 +136,13 @@ class DataVault(LabradServer):
 
     def getSession(self, c):
         """Get a session object for the current path."""
-        return self.session_store.get(c['path'])
+        return c['session']
 
     def getDataset(self, c):
         """Get a dataset object for the current dataset."""
         if 'dataset' not in c:
             raise errors.NoDatasetError()
-        session = self.getSession(c)
-        return session.openDataset(c['dataset'])
+        return c['datasetObj']
 
     # session signals
     onNewDir = Signal(543617, 'signal: new dir', 's')
@@ -215,11 +215,10 @@ class DataVault(LabradServer):
                 _session = self.session_store.get(temp) # touch the session
         if c['path'] != temp:
             # stop listening to old session and start listening to new session
-            try:
-                self.session_store.get(c['path']).listeners.remove(c.ID)
-            except KeyError:
-                pass
-            self.session_store.get(temp).listeners.add(c.ID)
+            c['session'].listeners.remove(c.ID)
+            session = self.session_store.get(temp)
+            session.listeners.add(c.ID)
+            c['session'] = session
             c['path'] = temp
         return c['path']
 
@@ -259,6 +258,7 @@ class DataVault(LabradServer):
         session = self.getSession(c)
         dataset = session.newDataset(name or 'untitled', independents, dependents)
         c['dataset'] = dataset.name # not the same as name; has number prefixed
+        c['datasetObj'] = dataset
         c['filepos'] = 0 # start at the beginning
         c['commentpos'] = 0
         c['writing'] = True
@@ -274,6 +274,7 @@ class DataVault(LabradServer):
         session = self.getSession(c)
         dataset = session.openDataset(name)
         c['dataset'] = dataset.name # not the same as name; has number prefixed
+        c['datasetObj'] = dataset
         c['filepos'] = 0
         c['commentpos'] = 0
         c['writing'] = False

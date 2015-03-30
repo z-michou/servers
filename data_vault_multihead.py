@@ -193,15 +193,12 @@ class DataVault(LabradServer):
     def getSession(self, c):
         """Get a session object for the current path."""
         return c['session']
-        #return Session(c['path'], self)
 
     def getDataset(self, c):
         """Get a dataset object for the current dataset."""
         if 'dataset' not in c:
             raise errors.NoDatasetError()
         return c['datasetObj']
-        #session = self.getSession(c)
-        #return session.datasets[c['dataset']]
 
     @setting(6, tagFilters=['s', '*s'], includeTags='b',
                 returns=['*s{subdirs}, *s{datasets}',
@@ -261,7 +258,7 @@ class DataVault(LabradServer):
             # stop listening to old session and start listening to new session
             ctx = ExtendedContext(self, c.ID)
             #print "removing %s from session %s" % (ctx, c['path'])
-            self.session_store.get(c['path']).listeners.remove(ctx)
+            c['session'].listeners.remove(ctx)
             session = self.session_store.get(temp)
             #print "Adding %s to listeners for %s" % (ctx, temp)
             session.listeners.add(ctx)

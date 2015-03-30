@@ -108,7 +108,7 @@ class SessionStore(object):
         path = tuple(path)
         if path in self._sessions:
             return self._sessions[path]
-        session = Session(self.datadir, path, self.hub)
+        session = Session(self.datadir, path, self.hub, self)
         self._sessions[path] = session
         return session
 
@@ -121,7 +121,7 @@ class Session(object):
     file, and manages the datasets in this directory.
     """
 
-    def __init__(self, datadir, path, hub):
+    def __init__(self, datadir, path, hub, session_store):
         """Initialization that happens once when session object is created."""
         self.path = path
         self.hub = hub
@@ -133,7 +133,7 @@ class Session(object):
             os.makedirs(self.dir)
 
             # notify listeners about this new directory
-            parent_session = Session(datadir, path[:-1], hub)
+            parent_session = session_store.get(path[:-1])
             hub.onNewDir(path[-1], parent_session.listeners)
 
         if os.path.exists(self.infofile):
