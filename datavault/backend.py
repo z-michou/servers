@@ -1,5 +1,6 @@
 import mmap
 import os
+import h5py
 
 from twisted.internet import reactor
 
@@ -23,9 +24,10 @@ class SelfClosingFile(object):
     A container for a file object that closes the underlying file handle if not
     accessed within a specified timeout. Call this container to get the file handle.
     """
-    def __init__(self, filename, mode, timeout=FILE_TIMEOUT, touch=True):
-        self.filename = filename
-        self.mode = mode
+    def __init__(self, opener=open, open_args=(), open_kw={}, timeout=FILE_TIMEOUT, touch=True):
+        self.opener = opener
+        self.open_args = open_args
+        self.open_kw = open_kw
         self.timeout = timeout
         self.callbacks = []
         if touch:
@@ -33,7 +35,7 @@ class SelfClosingFile(object):
 
     def __call__(self):
         if not hasattr(self, '_file'):
-            self._file = open(self.filename, self.mode)
+            self._file = self.opener(*self.open_args, **self.open_kw)
             self._fileTimeoutCall = reactor.callLater(self.timeout, self._fileTimeout)
         else:
             self._fileTimeoutCall.reset(self.timeout)
@@ -61,7 +63,7 @@ class CsvListData(object):
 
     def __init__(self, filename, cols, file_timeout=FILE_TIMEOUT, data_timeout=DATA_TIMEOUT):
         self.filename = filename
-        self._file = SelfClosingFile(filename, 'a+', timeout=file_timeout)
+        self._file = SelfClosingFile(open_args=(filename, 'a+'), timeout=file_timeout)
         self.cols = cols
         self.timeout = data_timeout
 
@@ -127,7 +129,7 @@ class CsvNumpyData(CsvListData):
 
     def __init__(self, filename, cols):
         self.filename = filename
-        self._file = SelfClosingFile(filename, 'rw')
+        self._file = SelfClosingFile(open_args=(filename, 'rw'))
         self.cols = cols
 
     @property
@@ -217,6 +219,49 @@ class CsvNumpyData(CsvListData):
             nrows = len(self.data) if self.data.size > 0 else 0
             return pos < nrows
 
+class SimpleHDF5Data(object):
+    """
+    Dataset backed by HDF5 file.  This is a very simple implementation
+    that only supports a single 2-D dataset of all floats.  HDF5 files
+    support multiple types, multiple dimensions, and a filesystem-like
+    tree of datasets within one file.  Here, the single dataset is stored
+    in /DataVault within the HDF5 file.
+    """
+    def __init__(self, filename, cols):
+        self._file = SelfClosingFile(h5py.File, open_args=(filename, 'a'))
+        self.ncol = cols
+        if "DataVault" not in self.file:
+            self.file.create_dataset("DataVault", (0, cols), dtype='float64', maxshape=(None, cols))
+
+    @property
+    def file(self):
+        return self._file()
+    @property
+    def dataset(self):
+        return self.file["DataVault"]
+
+    def addData(self, data):
+        data = np.atleast_2d(np.asarray(data))
+        old_shape = self.dataset.shape
+        if old_shape[1:] != data.shape[1:]:
+            raise RuntimeError("Input data is wrong shape for dataset")
+        new_shape = (old_shape[0] + data.shape[0],) + old_shape[1:]
+        self.dataset.resize(new_shape)
+        self.dataset[old_shape[0]:new_shape[0],:] = data
+
+    def getData(self, limit, start):
+        if limit is None:
+            data = self.dataset[start:,:]
+        else:
+            data = self.dataset[start:start+limit, :]
+        return data, start+data.shape[0]
+
+    def __len__(self):
+        return self.dataset.shape[0]
+
+    def hasMore(self, pos):
+        return pos < len(self)
+
 class BinaryData(object):
     """
     Data backed by a binary-formatted file.
@@ -225,7 +270,7 @@ class BinaryData(object):
     """
 
     def __init__(self, filename, cols):
-        self._file = SelfClosingFile(filename, 'a+b')
+        self._file = SelfClosingFile(open_args=(filename, 'a+b'))
         self._file.onClose(self._close_map)
         self.cols = cols
         self.rowBytes = cols * 8
@@ -293,10 +338,14 @@ def create_backend(filename, cols):
     """
     csv_file = filename + '.csv'
     bin_file = filename + '.bin'
+    hdf5_file = filename + '.hdf5'
+
     if os.path.exists(csv_file):
         if use_numpy:
             return CsvNumpyData(csv_file, cols)
         else:
             return CsvListData(csv_file, cols)
-    else:
+    elif os.path.exists(bin_file):
         return BinaryData(bin_file, cols)
+    else:
+        return SimpleHDF5Data(hdf5_file, cols)

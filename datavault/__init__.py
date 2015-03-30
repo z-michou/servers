@@ -200,7 +200,7 @@ class Session(object):
         files = os.listdir(self.dir)
         files.sort()
         dirs = [filename_decode(s[:-4]) for s in files if s.endswith('.dir')]
-        datasets = [filename_decode(s[:-4]) for s in files if s.endswith('.csv') or s.endswith('.bin')]
+        datasets = [filename_decode(s[:-4]) for s in files if s.endswith('.ini') and s.lower() != 'session.ini' ]
         # apply tag filters
         def include(entries, tag, tags):
             """Include only entries that have the specified tag."""
@@ -227,7 +227,8 @@ class Session(object):
         """Get a list of dataset names in this directory."""
         files = os.listdir(self.dir)
         files.sort()
-        return [filename_decode(s[:-4]) for s in files if s.endswith('.csv') or s.endswith('.bin')]
+        filenames = [filename_decode(s[:-4]) for s in files if s.endswith('ini') and s.lower() != 'session.ini']
+        return filenames
 
     def newDataset(self, title, independents, dependents):
         num = self.counter
@@ -257,7 +258,7 @@ class Session(object):
 
         filename = filename_encode(name)
         file_base = os.path.join(self.dir, filename)
-        if not (os.path.exists(file_base + '.csv') or os.path.exists(file_base + '.bin')):
+        if not (os.path.exists(file_base + '.csv') or os.path.exists(file_base + '.bin') or os.path.exists(file_base + '.hdf5')):
             raise errors.DatasetNotFoundError(name)
 
         if name in self.datasets:
