@@ -195,6 +195,9 @@ import os
 import itertools
 import struct
 import time
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
 def timeString():
     t = time.localtime()
     ts = '%s %s %s %s %s %s' %(t.tm_year, t.tm_mon, t.tm_mday, t.tm_hour,
@@ -630,9 +633,10 @@ class BoardGroup(object):
                 # Send a request for the run lock, do not wait for response.
                 runNow = self.runLock.acquire()
                 try:
+                    logging.debug("waiting for lock")
                     yield loadDone # wait until load is finished.
                     yield runNow # Wait for acquisition of the run lock.
-
+                    logging.debug("acquired lock")
                     # Set the number of triggers needed before we can actually
                     # run. We expect to get one trigger for each board that
                     # had to run and return data. This is the number of
@@ -652,11 +656,13 @@ class BoardGroup(object):
                     needSetup = (not setupState) or (not self.setupState) or \
                                     (not (setupState <= self.setupState))
                     if needSetup:
+                        logging.debug("need setup")
                         # we require changes to the setup state so first, wait
                         # for triggers indicating that the previous run has
                         # collected.
                         # If this fails, something BAD happened!
                         r = yield waitPkt.send()
+                        logging.debug("waitPkt sent")
                         try:
                             # Then set up
                             # print "fpga server: type(setupPkts): ",type(setupPkts)
@@ -668,18 +674,22 @@ class BoardGroup(object):
                                     # print "record %d data %s,%s,%s,%s" % (idx, rec[0], rec[1], rec[2], rec[3])
                             # print("fpga server: run: sending setup packets")
                             yield self.sendAll(setupPkts, 'Setup')
+                            logging.debug("setupPkts sent")
                             # print setupPkts
                             self.setupState = setupState
-                        except Exception:
+                        except Exception as e:
                             # if there was an error, clear setup state
                             self.setupState = set()
-                            raise
+                            logging.error("Error in setup packets: " + str(e))
+                            raise e
                         # and finally run the sequence
                         yield runPkt.send()
+                        logging.debug("runPkt sent")
                     else:
                         # if this fails, something BAD happened!
+                        logging.debug("no setup")
                         r = yield bothPkt.send()
-
+                        logging.debug("bothPkt sent")
                     # Keep track of how long the packet waited before being
                     # able to run.
                     # XXX How does this work? Why is r['nTriggers'] the wait
@@ -690,12 +700,16 @@ class BoardGroup(object):
                         self.runWaitTimes.pop(0)
 
                     yield self.readLock.acquire() # wait for our turn to read
+                    logging.debug("acquired readLock")
 
                     # stage 3: collect
                     # Collect appropriate number of packets and then trigger
                     # the master context.
-                    collectAll = defer.DeferredList( \
-                        [p.send() for p in collectPkts], consumeErrors=True)
+                    collectAll = defer.DeferredList(
+                        [p.send() for p in collectPkts],
+                        consumeErrors=True,
+                        # consumeErrors=False,
+                    )
                 finally:
                     # by releasing the runLock, we allow the next sequence to
                     # send its run packet. if our collect fails due to a
@@ -720,20 +734,27 @@ class BoardGroup(object):
                     # to go as soon as our triggers are received, but only if
                     # that run command has been sent!
                     self.runLock.release()
+                    logging.debug("released runLock")
                 # Wait for data to be collected.
+                logging.debug("collecting results...")
                 results = yield collectAll
+                logging.debug("collected results")
             finally:
                 for pageLock in pageLocks:
                     pageLock.release()
+                logging.debug("pageLocks released")
 
             # check for a timeout and recover if necessary
             if not all(success for success, result in results):
                 for success, result in results:
                     if not success:
                         result.printTraceback()
+                logging.error("Recovering from timeout...")
                 yield self.recoverFromTimeout(runners, results)
                 self.readLock.release()
-                raise TimeoutError(self.timeoutReport(runners, results))
+                report = self.timeoutReport(runners, results)
+                logging.error("TimeoutError: " + report)
+                raise TimeoutError(report)
             
             # stage 4: read
             # no timeout, so go ahead and read data
@@ -817,6 +838,7 @@ class BoardGroup(object):
                 for i, (s, r) in zip(infoList, results):
                     m = 'OK' if s else ('error!\n' + r.getBriefTraceback())
                     msg += str(i) + (': %s\n\n' % m)
+            logging.debug(msg)
             raise Exception(msg)
         
     def extractTiming(self, packets):
@@ -851,14 +873,13 @@ class BoardGroup(object):
                 # processReadback as a module level function in dac.py,
                 # whereas in adc.py it's a staticmethod of the ADC class.
                 if isinstance(runner, dac.DacRunner):
-                    count = runner.dev.\
-                            processReadback(ans[0][3])['executionCounter']
+                    count = runner.dev.processReadback(ans[0][3])['executionCounter']
                 elif isinstance(runner, adc.AdcRunner):
-                    count = runner.dev.processReadback(ans[0][3])\
-                                ['executionCounter']
+                    count = runner.dev.processReadback(ans[0][3])['executionCounter']
                 runner.executionCount = count
             except Exception as e:
                 print e
+                logging.error("Failed to recover from timeout: " + str(e))
                 raise Exception('Recover from error failed')
             # Finally, clear the packet buffer and send trigger if this was a
             # failed board

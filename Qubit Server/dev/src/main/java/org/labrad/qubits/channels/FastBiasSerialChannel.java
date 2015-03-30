@@ -1,5 +1,6 @@
 package org.labrad.qubits.channels;
 
+import com.google.common.base.Preconditions;
 import org.labrad.data.Data;
 import org.labrad.qubits.config.SetupPacket;
 
@@ -28,11 +29,14 @@ public class FastBiasSerialChannel extends FastBiasChannel {
     configured = true;
   }
 
+  public boolean hasSetupPacket() {
+    return configured;
+  }
+
   public SetupPacket getSetupPacket() {
+    Preconditions.checkState(hasSetupPacket(), "Cannot get setup packet for " +
+                    "channel '%s': it has not been configured.", getName());
     int dac_num, rc_time_constant;
-    if (!configured) {
-      return null;
-    }
     if (dac.toLowerCase().equals("dac0")) {
       dac_num = 0;
       rc_time_constant = 1;

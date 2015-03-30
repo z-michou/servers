@@ -1,0 +1,22 @@
+[0m[[0minfo[0m] [0mCreating a distributable package in target\pack[0m
+[0m[[0minfo[0m] [0mCopying libraries to target\pack\lib[0m
+[0m[[0minfo[0m] [0mproject jars:[0m
+[0m[[0minfo[0m] [0mtarget\qubitserver-0.4.10.jar[0m
+[0m[[0minfo[0m] [0mproject dependencies:[0m
+[0m[[0minfo[0m] [0morg.scala-lang:scala-library:2.10.4[0m
+[0m[[0minfo[0m] [0mcom.google.guava:guava:18.0[0m
+[0m[[0minfo[0m] [0morg.jboss.netty:netty:3.2.10.Final[0m
+[0m[[0minfo[0m] [0morg.labrad:jlabrad:0.2.0-M1[0m
+[0m[[0minfo[0m] [0morg.jboss.netty:netty:3.2.10.Final-sources[0m
+[0m[[0minfo[0m] [0mcom.google.guava:guava:18.0-sources[0m
+[0m[[0minfo[0m] [0munmanaged dependencies:[0m
+[0m[[0minfo[0m] [0mexplicit dependencies:[0m
+[0m[[0minfo[0m] [0mCreate a bin folder: target\pack\bin[0m
+[0m[[0minfo[0m] [0mGenerating launch scripts[0m
+[0m[[0minfo[0m] [0mmain class for qubitserver: org.labrad.qubits.QubitServer[0m
+[0m[[0minfo[0m] [0mGenerating target\pack\bin\qubitserver[0m
+[0m[[0minfo[0m] [0mGenerating target\pack\bin\qubitserver.bat[0m
+[0m[[0minfo[0m] [0mpacked resource directories = C:\labrad-servers\servers\Qubit Server\dev\src\pack[0m
+[0m[[0minfo[0m] [0mGenerating target\pack\Makefile[0m
+[0m[[0minfo[0m] [0mGenerating target\pack\VERSION[0m
+[0m[[0minfo[0m] [0mdone.[0m

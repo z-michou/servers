@@ -1,0 +1,11 @@
+[0m[[0minfo[0m] [0mRunning org.labrad.qubits.QubitServer [0m
+[0m[[0mdebug[0m] [0mWaiting for threads to exit or System.exit to be called.[0m
+[0m[[0mdebug[0m] [0m  Classpath:[0m
+[0m[[0mdebug[0m] [0m	C:\labrad-servers\servers\Qubit Server\dev\target\classes[0m
+[0m[[0mdebug[0m] [0m	C:\Users\redheatUser\.sbt\boot\scala-2.10.4\lib\scala-library.jar[0m
+[0m[[0mdebug[0m] [0m	C:\Users\redheatUser\.ivy2\cache\org.labrad\jlabrad\jars\jlabrad-0.2.0-M1.jar[0m
+[0m[[0mdebug[0m] [0m	C:\Users\redheatUser\.ivy2\cache\com.google.guava\guava\jars\guava-18.0-sources.jar[0m
+[0m[[0mdebug[0m] [0m	C:\Users\redheatUser\.ivy2\cache\com.google.guava\guava\jars\guava-18.0.jar[0m
+[0m[[0mdebug[0m] [0m	C:\Users\redheatUser\.ivy2\cache\org.jboss.netty\netty\jars\netty-3.2.10.Final-sources.jar[0m
+[0m[[0mdebug[0m] [0m	C:\Users\redheatUser\.ivy2\cache\org.jboss.netty\netty\jars\netty-3.2.10.Final.jar[0m
+[0m[[0mdebug[0m] [0mWaiting for thread run-main-0 to terminate.[0m

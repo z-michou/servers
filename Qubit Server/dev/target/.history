@@ -1,0 +1,10 @@
+compile
+exit
+compile
+runMain org.labrad.qubits.QubitServer
+compile
+runMain org.labrad.qubits.QubitServer
+pack
+exit
+pack
+exit
