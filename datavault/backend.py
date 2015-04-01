@@ -300,7 +300,7 @@ class CsvNumpyData(CsvListData):
 
     def __init__(self, filename):
         self.filename = filename
-        self._file = SelfClosingFile(open_args=(filename, 'rw'))
+        self._file = SelfClosingFile(open_args=(filename, 'a+'))
         self.infofile = filename[:-4] + '.ini'
 
     @property
