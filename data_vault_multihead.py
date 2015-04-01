@@ -369,8 +369,8 @@ class DataVault(LabradServer):
         traces, while legend is unique to each trace.
         """
         ds = self.getDataset(c)
-        ind = [(i['label'], i['units']) for i in ds.independents]
-        dep = [(d['category'], d['label'], d['units']) for d in ds.dependents]
+        ind = ds.getIndependents()
+        dep = ds.getDependents()
         return ind, dep
 
     @setting(120, returns='*s')
@@ -379,7 +379,7 @@ class DataVault(LabradServer):
         dataset = self.getDataset(c)
         ctx = ExtendedContext(self, c.ID)
         dataset.param_listeners.add(ctx) # send a message when new parameters are added
-        return [par['label'] for par in dataset.parameters]
+        return dataset.getParamNames()
 
     @setting(121, 'add parameter', name='s', returns='')
     def add_parameter(self, c, name, data):
@@ -402,7 +402,7 @@ class DataVault(LabradServer):
         are not allowed).
         """
         dataset = self.getDataset(c)
-        names = [par['label'] for par in dataset.parameters]
+        names = dataset.getParamNames()
         params = tuple((name, dataset.getParameter(name)) for name in names)
         ctx = ExtendedContext(self, c.ID)
         dataset.param_listeners.add(ctx) # send a message when new parameters are added
