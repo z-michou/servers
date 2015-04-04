@@ -332,7 +332,6 @@ class Dataset(object):
 
         self.data = backend.create_backend(file_base)
         if create:
-            created = accessed = modified = datetime.now()
             indep = [self.makeIndependent(i) for i in independents]
             dep = [self.makeDependent(d) for d in dependents]
             self.data.initialize_info(title, indep, dep)

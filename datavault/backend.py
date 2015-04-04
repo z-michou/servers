@@ -4,7 +4,6 @@ import base64
 import datetime
 import h5py
 from twisted.internet import reactor
-from . import errors, util
 
 try:
     import numpy as np
@@ -14,21 +13,20 @@ except ImportError, e:
     print "Numpy not imported.  The DataVault will operate, but will be slower."
     use_numpy = False
 from labrad import types as T
+from . import errors, util
 
-from .errors import BadDataError
 TIME_FORMAT = '%Y-%m-%d, %H:%M:%S'
-
 PRECISION = 12 # digits of precision to use when saving data
 DATA_FORMAT = '%%.%dG' % PRECISION
 FILE_TIMEOUT = 60 # how long to keep datafiles open if not accessed
 DATA_TIMEOUT = 300 # how long to keep data in memory if not accessed
+DATA_URL_PREFIX = 'data:application/labrad;base64,'
+
 def time_to_str(t):
     return t.strftime(TIME_FORMAT)
 
 def time_from_str(s):
     return datetime.datetime.strptime(s, TIME_FORMAT)
-
-DATA_URL_PREFIX = 'data:application/labrad;base64,'
 
 class SelfClosingFile(object):
     """
@@ -66,12 +64,17 @@ class SelfClosingFile(object):
         self.callbacks.append(callback)
 
 class IniData(object):
-    '''
-    Handles dataset metadata stored in INI files.  This is used via
-    subclassing mostly out of laziness: this was the easy way to
-    separate it from the code that messes with the acutal data
-    storage.
-    '''
+    """
+    Handles dataset metadata stored in INI files.  
+
+    This is used via subclassing mostly out of laziness: this was the
+    easy way to separate it from the code that messes with the acutal
+    data storage so that the data storage can be modified to use HDF5
+    and complex data structures.  Once the HDF5 stuff is finished,
+    this can be changed to use composition rather than inheritance.
+    This provides the load() and save() methods to read and write the
+    INI file as well as accessors for all the metadata attributes.
+    """
     def load(self):
         S = util.DVSafeConfigParser()
         S.read(self.infofile)
@@ -276,7 +279,7 @@ class CsvListData(IniData):
         if not len(data) or not isinstance(data[0], list):
             data = [data]
         if len(data[0]) != self.cols:
-            raise BadDataError(self.cols, len(data[0]))
+            raise erros.BadDataError(self.cols, len(data[0]))
 
         # append the data to the file
         self._saveData(data)
@@ -361,7 +364,7 @@ class CsvNumpyData(CsvListData):
 
         # check row length
         if data.shape[-1] != self.cols:
-            raise BadDataError(self.cols, data.shape[-1])
+            raise erros.BadDataError(self.cols, data.shape[-1])
 
         # append data to in-memory data
         if self.data.size > 0:
