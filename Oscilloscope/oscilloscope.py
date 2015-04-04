@@ -52,18 +52,50 @@ class NotImplementedAttribute(object):
         self.label = label
 
     def __get__(self, inst, cls):
-        raise AttributeError("Attribute %s of class %s not implemented"\
-            %(self.label, cls))
+        """Raise AttributeError because this attribute should be overridden"""
+        raise AttributeError("Attribute {} of class {} not implemented".format(
+            self.label,
+            cls
+        )
 
 
 class OscilloscopeWrapper(GPIBDeviceWrapper):
 
+    # Constant parameters
+
+    # CHANNEL
+
+    # input
+    
     CHANNEL_STATES = ['ON', 'OFF']
+    COUPLINGS = ['AC', 'DC']
+    PROBE_FACTORS = NotImplementedAttribute('PROBE_FACTORS')
 
     TRIGGER_SOURCES = ['AUX', 'LINE', 'CH1', 'CH2', 'CH3', 'CH4']
     TRIGGER_MODES = ["AUTO", "NORM"]
 
+
+    # GPIB string generation functions
+    #
+    # The following code provides functions which, when evaluated, produce GPIB
+    # strings to be sent to the oscilloscope. The functions are actually the
+    # .format methods of string literals. Consider the string
+    # 'CH{0}:COUP {1}'.
+    # This string has a .format method, which is a function that takes two
+    # arguments. When you call that function with arguments 0 and "ON", the
+    # result is
+    # 'CH0:COUP ON'
+    # which is the GPIB string that turns on channel 0.
+    # We do it this way because it makes the code declarative and therefore
+    # it is easy to see what each function does.
+
     # CHANNEL SETTINGS
+
+    # input
+
+    channel_on_off_write = NotImplementedAttribute('channel_on_off_write')
+    channel_on_off_query = NotImplementedAttribute('channel_on_off_query')
+    channel_on_off_parse = NotImplementedAttribute('channel_on_off_parse')
 
     coupling_write = 'CH{0}:COUP {1}'.format
     coupling_query = 'CH{0}:COUP?'.format
@@ -83,16 +115,19 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     invert_query = 'CH{0}:INV?'.format
     invert_parse = bool
 
+    VERT_SCALE_UNIT = NotImplementedAttribute('VERT_SCALE_UNIT')
     vert_scale_write = 'CH{0}:SCA {1}'.format
     vert_scale_query = 'CH{0}:SCA?'.format
     @classmethod
     def vert_scale_parse(cls, s):
         return float(s) * cls.VERT_SCALE_UNIT
 
+    VERT_POSITION_UNIT = NotImplementedAttribute('VERT_POSITION_UNIT')
     vert_position_write = 'CH{0}:POS {1}'.format
     vert_position_query = 'CH{0}:POS?'.format
     vert_position_parse = float
 
+    HORIZ_SCALE_UNIT = NotImplementedAttribute('HORIZ_SCALE_UNIT')
     horiz_scale_write = 'HOR:SCA {0}'.format
     horiz_scale_query = 'HOR:SCA?'.format
     @classmethod
@@ -131,6 +166,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     math_define_query = 'MATH{0}:DEFI?'.format
     math_define_parse = lambda x: x
 
+    MATH_VERT_SCALE_UNIT = NotImplementedAttribute('MATH_VERT_SCALE_UNIT')
     math_vert_scale_write = 'MATH{0}:VERT:SCA {1}'.format
     math_vert_scale_query = 'MATH{0}:VERT:SCA?'.format
     @classmethod
@@ -441,17 +477,12 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
 class TektronixWrapper(OscilloscopeWrapper):
     """Wrapper for Tektronix oscilloscopes"""
 
-    VERT_POSITION_UNIT = NotImplementedAttribute('VERT_POSITION_UNIT')
-    VERT_SCALE_UNIT = NotImplementedAttribute('VERT_SCALE_UNIT')
-    HORIZ_SCALE_UNIT = NotImplementedAttribute('HORIZ_SCALE_UNIT')
-    MATH_VERT_SCALE_UNIT = NotImplementedAttribute('MATH_VERT_SCALE_UNIT')
-
     channel_on_off_write = 'SEL:CH{0} {1}'.format
     channel_on_off_query = 'SEL:CH{0}'.format
     channel_on_off_parse = str
 
 
-class Tektronix2014BWrapper(Tektronix2014BWrapper):
+class Tektronix2014BWrapper(TektronixWrapper):
     """Wrapper for the Tektronix 2014B"""
 
     PROBE_FACTORS = [1, 10, 20, 50, 100, 500, 1000]
@@ -469,7 +500,7 @@ class Tektronix5054BWrapper(TektronixWrapper):
     PROBE_FACTORS = NotImplementedAttribute('PROBE_FACTORS')
 
     COUPLINGS = ['AC', 'DC', 'GND']
-    IMPEDACES = [50*Ohm, 1E6*Ohm]
+    IMPEDANCES = [50*Ohm, 1E6*Ohm]
 
     VERT_DIVISIONS = NotImplementedAttribute('VERT_DIVISIONS')  # 8
     HORIZ_DIVISIONS = NotImplementedAttribute('HORIZ_DIVISIONS')  # 10
@@ -478,11 +509,6 @@ class Tektronix5054BWrapper(TektronixWrapper):
     # AGILENT OSCILLOSCOPES
 
 class AgilentWrapper(OscilloscopeWrapper):
-
-    VERT_POSITION_UNIT = NotImplementedAttribute('VERT_POSITION_UNIT')
-    VERT_SCALE_UNIT = NotImplementedAttribute('VERT_SCALE_UNIT')
-    HORIZ_SCALE_UNIT = NotImplementedAttribute('HORIZ_SCALE_UNIT')
-    MATH_VERT_SCALE_UNIT = NotImplementedAttribute('MATH_VERT_SCALE_UNIT')
 
     channel_on_off_write = 'CHAN{0}:DISP {1}'.format
     channel_on_off_query = 'CHAN{0}:DISP?'.format
