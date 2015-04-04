@@ -61,6 +61,7 @@ class NotImplementedAttribute(object):
 
 class OscilloscopeWrapper(GPIBDeviceWrapper):
 
+    ############################################################################
     # Constant parameters
 
     # CHANNEL
@@ -70,11 +71,18 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     CHANNEL_STATES = ['ON', 'OFF']
     COUPLINGS = ['AC', 'DC']
     PROBE_FACTORS = NotImplementedAttribute('PROBE_FACTORS')
+    IMPEDANCES = NotImplementedAttribute('IMPEDANCES')
 
+    # TRIGGER
+
+    TRIGGER_SLOPES = NotImplementedAttribute('TRIGGER_SLOPES')
     TRIGGER_SOURCES = ['AUX', 'LINE', 'CH1', 'CH2', 'CH3', 'CH4']
     TRIGGER_MODES = ["AUTO", "NORM"]
 
+    # End constant parameters ##################################################
 
+
+    ############################################################################
     # GPIB string generation functions
     #
     # The following code provides functions which, when evaluated, produce GPIB
@@ -89,7 +97,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     # We do it this way because it makes the code declarative and therefore
     # it is easy to see what each function does.
 
-    # CHANNEL SETTINGS
+    # CHANNEL
 
     # input
 
@@ -134,6 +142,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     def horiz_scale_parse(cls, s):
         return float(s) * cls.HORIZ_SCALE_UNIT
 
+    HORIZ_POSITION_UNIT = NotImplementedAttribute('HORIZ_POSITION_UNIT')  # Used?
     horiz_position_write = 'HOR:POS {0}'.format
     horiz_position_query = 'HOR:POS?'.format
     horiz_position_parse = float
@@ -148,6 +157,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     trigger_slope_query = 'TRIG:EDGE:SLO?'.format
     trigger_slope_parse = lambda x: x  # Is this right?
 
+    TRIGGER_LEVEL_UNIT = NotImplementedAttribute('TRIGGER_LEVEL_UNIT')
     trigger_level_write = 'TRIG:LEV {0}'.format
     trigger_level_query = 'TRIG:LEV?'.format
     trigger_level_parse = int  # XXX Is this right?
@@ -173,8 +183,11 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     def math_vert_scale_parse(cls, s):
         return float(s) * cls.MATH_VERT_SCALE_UNIT
 
+    # End GPIB string generation functions #####################################
 
-    # DEVICE COMMUNICATION
+
+    ############################################################################
+    # Functions which actually communicate wit the hardware
 
     @inlineCallbacks
     def reset(self):
@@ -188,7 +201,9 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
 
         yield dev.write('*CLS')
 
-    # CHANNEL SETTINGS
+    # CHANNEL
+
+    # input
 
     @inlineCallbacks
     def channel_on_off(self, channel, state=None):
@@ -207,8 +222,6 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
             yield self.write(self.channel_on_off_write(channel, state))
         resp = yield self.query(self.channel_on_off_query(channel))
         returnValue(self.channel_on_off_parse(resp))
-
-    # probe settings
 
     @inlineCallbacks
     def coupling(self, channel, coupling=None):
@@ -304,8 +317,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         """
 
         is scale is not None:
-            scale_str = scale[self.VERT_SCALE_UNIT]
-            scale_str = format(scale_str,'E')
+            scale_str = format(scale[self.VERT_SCALE_UNIT], 'E')
             yield dev.write(self.vert_scale_write(channel, scale_str))
         resp = yield dev.query(self.vert_scale_query(channel))
         returnValue(self.vert_scale_parse(resp))
@@ -471,6 +483,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         resp = yield self.query(self.math_vert_scale_query(channel))
         returnValue(self.math_vert_scale_parse(resp))
 
+    #End functions which communicate with hardware #############################
 
     # TEKTRONIX OSCILLOSCOPES
 
@@ -486,8 +499,6 @@ class Tektronix2014BWrapper(TektronixWrapper):
     """Wrapper for the Tektronix 2014B"""
 
     PROBE_FACTORS = [1, 10, 20, 50, 100, 500, 1000]
-
-    COUPLINGS = ['AC', 'DC']
     IMPEDANCES = 
 
     VERT_DIVISIONS = NotImplementedAttribute('VERT_DIVISIONS')  # 8
@@ -497,10 +508,9 @@ class Tektronix2014BWrapper(TektronixWrapper):
 class Tektronix5054BWrapper(TektronixWrapper):
     """Wrapper for a Tektronix 5054B"""
 
-    PROBE_FACTORS = NotImplementedAttribute('PROBE_FACTORS')
-
-    COUPLINGS = ['AC', 'DC', 'GND']
+    PROBE_FACTORS =
     IMPEDANCES = [50*Ohm, 1E6*Ohm]
+
 
     VERT_DIVISIONS = NotImplementedAttribute('VERT_DIVISIONS')  # 8
     HORIZ_DIVISIONS = NotImplementedAttribute('HORIZ_DIVISIONS')  # 10
@@ -517,9 +527,8 @@ class AgilentWrapper(OscilloscopeWrapper):
 
 class AgilentDSO91304AWrapper(AgilentWrapper):
 
-    PROBE_FACTORS = NotImplementedAttribute('PROBE_FACTORS')
-
     COUPLINGS =
+    PROBE_FACTORS =
     IMPEDANCES =
 
     VERT_DIVISIONS = NotImplementedAttribute('VERT_DIVISIONS')  # 8
@@ -528,9 +537,8 @@ class AgilentDSO91304AWrapper(AgilentWrapper):
 
 class AgilentDSO7104BWrapper(AgilentWrapper):
 
-    PROBE_FACTORS = NotImplementedAttribute('PROBE_FACTORS')
-
     COUPLINGS =
+    PROBE_FACTORS = NotImplementedAttribute('PROBE_FACTORS')
     IMPEDANCES =
 
     VERT_DIVISIONS = NotImplementedAttribute('VERT_DIVISIONS')  # 8
@@ -542,6 +550,8 @@ class AgilentDSO7104BWrapper(AgilentWrapper):
     # MAIN SERVER
 
 class OscilloscopeServer(GPIBManagedServer):
+    """Manges communication with oscilloscopes. ALL the oscilloscopes."""
+
     name = 'oscilloscope_server'
 
     deviceWrappers = {
