@@ -224,7 +224,11 @@ class Session(object):
         """Get a list of dataset names in this directory."""
         files = os.listdir(self.dir)
         files.sort()
-        filenames = [filename_decode(s[:-4]) for s in files if s.endswith('ini') and s.lower() != 'session.ini']
+        filenames = []
+        for s in files:
+            base, _, ext = s.rpartition('.')
+            if ext in ['csv', 'hdf5']:
+                filenames.append(base)
         return filenames
 
     def newDataset(self, title, independents, dependents):
@@ -325,7 +329,6 @@ class Dataset(object):
         self.hub = session.hub
         self.name = name
         file_base = os.path.join(session.dir, filename_encode(name))
-        self.infofile = file_base + '.ini'
         self.listeners = set() # contexts that want to hear about added data
         self.param_listeners = set()
         self.comment_listeners = set()

@@ -28,6 +28,22 @@ def time_to_str(t):
 def time_from_str(s):
     return datetime.datetime.strptime(s, TIME_FORMAT)
 
+def labrad_urlencode(data):
+    data_bytes, t = T.flatten(data)
+    all_bytes, _ = T.flatten((str(t), data_bytes), 'ss')
+    data_url = DATA_URL_PREFIX + base64.urlsafe_b64encode(all_bytes)
+    return data_url
+
+def labrad_urldecode(data_url):
+    if data_url.startswith(DATA_URL_PREFIX):
+        # decode parameter data from dataurl
+        all_bytes = base64.urlsafe_b64decode(data_url[len(DATA_URL_PREFIX):])
+        t, data_bytes = T.unflatten(all_bytes, 'ss')
+        data = T.unflatten(data_bytes, t)
+        return data
+    else:
+        raise ValueError("Trying to labrad_urldecode data that doesn't start with prefix: " % (DATA_URL_PREFIX,))
+
 class SelfClosingFile(object):
     """
     A container for a file object that closes the underlying file handle if not
@@ -110,9 +126,7 @@ class IniData(object):
             raw = S.get(sec, 'Data', raw=True)
             if raw.startswith(DATA_URL_PREFIX):
                 # decode parameter data from dataurl
-                all_bytes = base64.urlsafe_b64decode(raw[len(DATA_URL_PREFIX):])
-                t, data_bytes = T.unflatten(all_bytes, 'ss')
-                data = T.unflatten(data_bytes, t)
+                data = labrad_urldecode(raw)
             else:
                 # old parameters may have been saved using repr
                 data = T.evalLRData(raw)
@@ -163,9 +177,7 @@ class IniData(object):
             S.add_section(sec)
             S.set(sec, 'Label', par['label'])
             # encode the parameter value as a data-url
-            data_bytes, t = T.flatten(par['data'])
-            all_bytes, _ = T.flatten((str(t), data_bytes), 'ss')
-            data_url = DATA_URL_PREFIX + base64.urlsafe_b64encode(all_bytes)
+            data_url = labrad_urlencode(par['data'])
             S.set(sec, 'Data', data_url)
 
         sec = 'Comments'
@@ -393,7 +405,124 @@ class CsvNumpyData(CsvListData):
             nrows = len(self.data) if self.data.size > 0 else 0
             return pos < nrows
 
-class SimpleHDF5Data(IniData):
+class HDF5MetaData(object):
+    """
+    Class to store metadata inside the file itself.  
+
+    Like IniData, use this by subclassing.  I anticipate simply moving
+    this code into the HDF5Dataset class once it is working, since we
+    don't plan to support accessing HDF5 datasets with INI files once
+    this version works.
+    """
+    def load(self):
+        """
+        Load and save do nothing because HDF5 metadata is accessed live
+        """
+        pass
+    def save(self):
+        """
+        Load and save do nothing because HDF5 metadata is accessed live
+        """
+        pass
+
+    def initialize_info(self, title, indep, dep):
+        """
+        Initializes the metadata for a newly created dataset.
+        """
+        self.dataset.attrs['Title'] = title
+        t = time_to_str(datetime.datetime.now())
+        self.dataset.attrs['Access Time'] = t
+        self.dataset.attrs['Modification Time'] = t
+        self.dataset.attrs['Creation Time'] = t
+
+        dt = h5py.special_dtype(vlen=str)
+        self.dataset.attrs['Comments'] = np.ndarray((0,3), dtype=dt)
+
+        for idx, i in enumerate(indep):
+            (label, units) = i['label'], i['units']
+            self.dataset.attrs['Independent%d'%idx] = (label, units)
+        for idx, d, in enumerate(dep):
+            (label, legend, units) = d['category'], d['label'], d['units']
+            self.dataset.attrs['Dependent%d'%idx] = (label, legend, units)
+
+    def access(self):
+        self.dataset.attrs['Access Time'] = time_to_str(datetime.datetime.now())
+
+    def getIndependents(self):
+        rv = []
+        for idx in xrange(sys.maxint):
+            key = "Indepenent%d"%x
+            if key in self.dataset.attrs:
+                val = self.dataset.attrs[key]
+                rv.append((val[0], val[1]))
+            else:
+                return rv
+
+    def getDependents(self):
+        rv = []
+        for idx in xrange(sys.maxint):
+            key = "Dependent%d"%x
+            if key in self.dataset.attrs:
+                val = self.dataset.attrs[key]
+                rv.append((val[0], val[1], val[2]))
+            else:
+                return rv
+
+    def addParam(self, name, data):
+        keyname = 'Param.%s' % (name,)
+        self.dataset.attrs[keyname] = labrad_urlencode(data)
+
+    def getParameter(self, name, case_sensitive=True):
+        """
+        Get a parameter from the dataset.
+        """
+        keyname = 'Param.%s' % (name,)
+        if case_sensitive:
+            if keyname in self.dataset.attrs:
+                return labrad_urldecode(self.dataset.attrs[keyname])
+        else:
+            for k in self.dataset.attrs:
+                if k.lower == keyname.lower:
+                    return labrad_urldecode(self.dataset.attrs[k])
+        raise errors.BadParameterError(name)
+
+    def getParamNames(self):
+        """
+        Get the names of all dataset parameters.
+
+        Parameter names in the HDF5 file are prefixed with 'Param.' to avoid conflicts with
+        the other metadata.
+        """
+        names = [ str(k[6:]) for k in self.dataset.attrs if k.startswith('Param.') ]
+        return names
+
+    def addComment(self, user, comment):
+        """
+        Add a comment to the dataset.
+        """
+        t = time_to_str(datetime.datetime.now())
+        dt = h5py.special_dtype(vlen=str)
+        new_comment = np.array([[t, user, comment]], dtype=dt)
+        old_comments = self.dataset.attrs['Comments']
+        data = np.vstack((old_comments, new_comment))
+        self.dataset.attrs.create('Comments', data, dtype=dt) 
+
+    def getComments(self, limit, start):
+        """
+        Get comments in [(datetime, username, comment), ...] format.
+        """
+        if limit is None:
+            raw_comments = self.dataset.attrs['Comments'][start:]
+        else:
+            raw_comments = self.dataset.attrs['Comments'][start:start+limit]
+        comments = [ (time_from_str(c[0]), c[1], c[2]) for c in raw_comments ]
+        return comments, start+len(comments)
+
+    def numComments(self):
+        return len(self.dataset.attrs['Comments'])
+
+
+class SimpleHDF5Data(HDF5MetaData):
     """
     Dataset backed by HDF5 file.  This is a very simple implementation
     that only supports a single 2-D dataset of all floats.  HDF5 files
@@ -403,12 +532,15 @@ class SimpleHDF5Data(IniData):
     """
     def __init__(self, filename):
         self._file = SelfClosingFile(h5py.File, open_args=(filename, 'a'))
-        self.infofile = filename[:-5] + '.ini'
+        if 'Version' not in self.file.attrs:
+            self.file.attrs['Version'] = (1, 0, 0)
+        self.version = self.file.attrs['Version']
 
     def initialize_info(self, title, indep, dep):
-        IniData.initialize_info(self, title, indep, dep)
+        ncol = len(indep)+len(dep)
         if "DataVault" not in self.file:
-            self.file.create_dataset("DataVault", (0, self.cols), dtype='float64', maxshape=(None, self.cols))
+            self.file.create_dataset("DataVault", (0,ncol), dtype=np.float64, maxshape=(None,ncol))
+        HDF5MetaData.initialize_info(self, title, indep, dep)
 
     @property
     def file(self):
@@ -418,6 +550,9 @@ class SimpleHDF5Data(IniData):
         return self.file["DataVault"]
 
     def addData(self, data):
+        """
+        Adds one or more rows or data from a 2D array of floats.
+        """
         data = np.atleast_2d(np.asarray(data))
         old_shape = self.dataset.shape
         if old_shape[1:] != data.shape[1:]:
