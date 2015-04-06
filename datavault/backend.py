@@ -291,7 +291,7 @@ class CsvListData(IniData):
         if not len(data) or not isinstance(data[0], list):
             data = [data]
         if len(data[0]) != self.cols:
-            raise erros.BadDataError(self.cols, len(data[0]))
+            raise errors.BadDataError(self.cols, len(data[0]))
 
         # append the data to the file
         self._saveData(data)
@@ -376,7 +376,7 @@ class CsvNumpyData(CsvListData):
 
         # check row length
         if data.shape[-1] != self.cols:
-            raise erros.BadDataError(self.cols, data.shape[-1])
+            raise errors.BadDataError(self.cols, data.shape[-1])
 
         # append data to in-memory data
         if self.data.size > 0:
@@ -538,8 +538,9 @@ class SimpleHDF5Data(HDF5MetaData):
 
     def initialize_info(self, title, indep, dep):
         ncol = len(indep)+len(dep)
+        dtype = [ ('f%d'%idx, np.float64) for idx in range(ncol) ]
         if "DataVault" not in self.file:
-            self.file.create_dataset("DataVault", (0,ncol), dtype=np.float64, maxshape=(None,ncol))
+            self.file.create_dataset("DataVault", (0,), dtype=dtype, maxshape=(None,))
         HDF5MetaData.initialize_info(self, title, indep, dep)
 
     @property
@@ -554,18 +555,30 @@ class SimpleHDF5Data(HDF5MetaData):
         Adds one or more rows or data from a 2D array of floats.
         """
         data = np.atleast_2d(np.asarray(data))
-        old_shape = self.dataset.shape
-        if old_shape[1:] != data.shape[1:]:
-            raise RuntimeError("Input data is wrong shape for dataset")
-        new_shape = (old_shape[0] + data.shape[0],) + old_shape[1:]
-        self.dataset.resize(new_shape)
-        self.dataset[old_shape[0]:new_shape[0],:] = data
+        new_rows = data.shape[0]
+        old_rows = self.dataset.shape[0]
+        if data.shape[1] != len(self.dataset.dtype):
+            raise errors.BadDataError(len(self.dataset.dtype), data.shape[1])
+
+        self.dataset.resize((old_rows + new_rows,))
+        new_data = np.zeros((new_rows,), dtype=self.dataset.dtype)
+        for col in range(data.shape[1]):
+            field = "f%d" % (col,)
+            new_data[field] = data[:,col]
+        self.dataset[old_rows:(old_rows+new_rows)] = new_data
 
     def getData(self, limit, start):
+        """
+        Get up to limit rows from a dataset.
+        """
         if limit is None:
-            data = self.dataset[start:,:]
+            struct_data = self.dataset[start:]
         else:
-            data = self.dataset[start:start+limit, :]
+            struct_data = self.dataset[start:start+limit]
+        columns = []
+        for idx in range(len(struct_data.dtype)):
+            columns.append(struct_data['f%d'%idx])
+        data = np.column_stack(columns)
         return data, start+data.shape[0]
 
     def __len__(self):
