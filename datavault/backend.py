@@ -1,4 +1,5 @@
 import os
+import sys
 import base64
 import time
 import datetime
@@ -452,20 +453,20 @@ class HDF5MetaData(object):
     def getIndependents(self):
         rv = []
         for idx in xrange(sys.maxint):
-            key = "Indepenent%d"%x
+            key = "Independent%d"%idx
             if key in self.dataset.attrs:
                 val = self.dataset.attrs[key]
-                rv.append((val[0], val[1]))
+                rv.append((str(val[0]), str(val[1])))
             else:
                 return rv
 
     def getDependents(self):
         rv = []
         for idx in xrange(sys.maxint):
-            key = "Dependent%d"%x
+            key = "Dependent%d"%idx
             if key in self.dataset.attrs:
                 val = self.dataset.attrs[key]
-                rv.append((val[0], val[1], val[2]))
+                rv.append((str(val[0]), str(val[1]), str(val[2])))
             else:
                 return rv
 
