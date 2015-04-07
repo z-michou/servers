@@ -308,8 +308,8 @@ class DataVault(LabradServer):
         c['writing'] = True
         return c['path'], c['dataset']
 
-    @setting(10, name=['s', 'w'], returns='(*s{path}, s{name})')
-    def open(self, c, name):
+    @setting(10, name=['s', 'w'], append='b', returns='(*s{path}, s{name})')
+    def open(self, c, name, append=False):
         """Open a Dataset for reading.
 
         You can specify the dataset by name or number.
@@ -321,7 +321,7 @@ class DataVault(LabradServer):
         c['datasetObj'] = dataset
         c['filepos'] = 0
         c['commentpos'] = 0
-        c['writing'] = False
+        c['writing'] = append
         ctx = ExtendedContext(self, c.ID)
         dataset.keepStreaming(ctx, 0)
         dataset.keepStreamingComments(ctx, 0)
