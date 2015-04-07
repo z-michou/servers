@@ -1,6 +1,6 @@
-import mmap
 import os
 import base64
+import time
 import datetime
 import h5py
 from twisted.internet import reactor
@@ -430,13 +430,14 @@ class HDF5MetaData(object):
         Initializes the metadata for a newly created dataset.
         """
         self.dataset.attrs['Title'] = title
-        t = time_to_str(datetime.datetime.now())
+        t = time.time()
         self.dataset.attrs['Access Time'] = t
         self.dataset.attrs['Modification Time'] = t
         self.dataset.attrs['Creation Time'] = t
 
         dt = h5py.special_dtype(vlen=str)
-        self.dataset.attrs['Comments'] = np.ndarray((0,3), dtype=dt)
+        comment_type = [('Timestamp', np.float64), ('User', dt), ('Comment', dt)]
+        self.dataset.attrs['Comments'] = np.ndarray((0,), dtype=comment_type)
 
         for idx, i in enumerate(indep):
             (label, units) = i['label'], i['units']
@@ -446,7 +447,7 @@ class HDF5MetaData(object):
             self.dataset.attrs['Dependent%d'%idx] = (label, legend, units)
 
     def access(self):
-        self.dataset.attrs['Access Time'] = time_to_str(datetime.datetime.now())
+        self.dataset.attrs['Access Time'] = time.time()
 
     def getIndependents(self):
         rv = []
@@ -500,12 +501,14 @@ class HDF5MetaData(object):
         """
         Add a comment to the dataset.
         """
-        t = time_to_str(datetime.datetime.now())
+        t = time.time()
         dt = h5py.special_dtype(vlen=str)
-        new_comment = np.array([[t, user, comment]], dtype=dt)
+
+        comment_type = [('Timestamp', np.float64), ('User', dt), ('Comment', dt)]
+        new_comment = np.array([(t, user, comment)], dtype=comment_type)
         old_comments = self.dataset.attrs['Comments']
-        data = np.vstack((old_comments, new_comment))
-        self.dataset.attrs.create('Comments', data, dtype=dt) 
+        data = np.hstack((old_comments, new_comment))
+        self.dataset.attrs.create('Comments', data, dtype=comment_type)
 
     def getComments(self, limit, start):
         """
@@ -515,7 +518,7 @@ class HDF5MetaData(object):
             raw_comments = self.dataset.attrs['Comments'][start:]
         else:
             raw_comments = self.dataset.attrs['Comments'][start:start+limit]
-        comments = [ (time_from_str(c[0]), c[1], c[2]) for c in raw_comments ]
+        comments = [ (datetime.datetime.fromtimestamp(c[0]), str(c[1]), str(c[2])) for c in raw_comments ]
         return comments, start+len(comments)
 
     def numComments(self):
