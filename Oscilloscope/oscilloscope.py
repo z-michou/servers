@@ -60,87 +60,17 @@ class NotImplementedAttribute(object):
 
 class OscilloscopeWrapper(GPIBDeviceWrapper):
 
-    # CHANNEL SETTINGS
-
-    CHANNEL_STATES = ['ON', 'OFF']
-
-    COUPLINGS = ['AC', 'DC']
-    coupling_write = 'CH{0}:COUP {1}'.format
-    coupling_query = 'CH{0}:COUP?'.format
-    coupling_parse = str
-
-    probe_factor_write = 'CH{0}:PRO {1}'.format
-    probe_factor_query = 'CH{0}:PRO?'.format
-    probe_factor_parse = NotImplementedAttribute('probe_factor_parse')
-
-    termination_write = 'CH{0}:TER {1}'.format
-    termination_query = 'CH{1}:TER?'.format
-    termination_parse = str  # XXX Is this correct?
-
-    # scale, position, etc.
-
-    invert_write = 'CH{0}:INV {1}'.format
-    invert_query = 'CH{0}:INV?'.format
-    invert_parse = bool
-
-    vert_scale_write = 'CH{0}:SCA {1}'.format
-    vert_scale_query = 'CH{0}:SCA?'.format
-    @classmethod
-    def vert_scale_parse(cls, s):
-        return float(s) * cls.VERT_SCALE_UNIT
-
-    vert_position_write = 'CH{0}:POS {1}'.format
-    vert_position_query = 'CH{0}:POS?'.format
-    vert_position_parse = float
-
-    horiz_scale_write = 'HOR:SCA {0}'.format
-    horiz_scale_query = 'HOR:SCA?'.format
-    @classmethod
-    def horiz_scale_parse(cls, s):
-        return float(s) * cls.HORIZ_SCALE_UNIT
-
-    horiz_position_write = 'HOR:POS {0}'.format
-    horiz_position_query = 'HOR:POS?'.format
-    horiz_position_parse = float
-
+    # SYSTEM
+    # CHANNEL
     # TRIGGER
-
-    TRIGGER_SOURCES = ['AUX', 'LINE', 'CH1', 'CH2', 'CH3', 'CH4']
-    TRIGGER_MODES = ["AUTO", "NORM"]
-
-    # XXX Tek scope servers had TRIG:A:...
-    # I've taken the A out to see if it still works, because that would mean
-    # Agi and Tek code is the same.
-
-    trigger_slope_write = 'TRIG:EDGE:SLO {0}'.format
-    trigger_slope_query = 'TRIG:EDGE:SLO?'.format
-    trigger_slope_parse = lambda x: x  # Is this right?
-
-    trigger_level_write = 'TRIG:LEV {0}'.format
-    trigger_level_query = 'TRIG:LEV?'.format
-    trigger_level_parse = int  # XXX Is this right?
-
-    trigger_source_write = 'TRIG:EDGE:SOU {0}'.format
-    trigger_source_query = 'TRIG:EDGE:SOU?'.format
-    trigger_source_parse = str  # XXX Is this correct?
-
-    trigger_mode_write = 'TRIG:MOD {0}'.format
-    trigger_mode_query = 'TIRG:MOD?'.format
-    trigger_mode_parse = str  # XXX is this correct?
-
+    # ACQUISITION
     # MATH
+    # MEASURE
 
-    math_define_write = 'MATH{0}:DEFI {1}'.format
-    math_define_query = 'MATH{0}:DEFI?'.format
-    math_define_parse = lambda x: x
 
-    math_vert_scale_write = 'MATH{0}:VERT:SCA {1}'.format
-    math_vert_scale_query = 'MATH{0}:VERT:SCA?'.format
-    @classmethod
-    def math_vert_scale_parse(cls, s):
-        return float(s) * cls.MATH_VERT_SCALE_UNIT
+    # String parsing
 
-    # DEVICE COMMUNICATION
+    # SYSTEM
 
     @inlineCallbacks
     def reset(self):
@@ -152,7 +82,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         """Clear all device status bytes"""
         yield dev.write('*CLS')
 
-    # CHANNEL SETTINGS
+    # CHANNEL
 
     @inlineCallbacks
     def channel_on_off(self, channel, state=None):
@@ -430,7 +360,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         resp = yield self.query(self.math_vert_scale_query(channel))
         returnValue(self.math_vert_scale_parse(resp))
 
-    #MEASURE
+    # MEASURE
 
     @inlineCallbacks
     def set_measure_rms(self, channel):
@@ -468,9 +398,88 @@ class TektronixWrapper(OscilloscopeWrapper):
     HORIZ_SCALE_UNIT = NotImplementedAttribute('HORIZ_SCALE_UNIT')
     MATH_VERT_SCALE_UNIT = NotImplementedAttribute('MATH_VERT_SCALE_UNIT')
 
+    # CHANNEL
+
+    CHANNEL_STATES = ['ON', 'OFF']
     channel_on_off_write = 'SEL:CH{0} {1}'.format
     channel_on_off_query = 'SEL:CH{0}'.format
     channel_on_off_parse = str
+
+    COUPLINGS = ['AC', 'DC']
+    coupling_write = 'CH{0}:COUP {1}'.format
+    coupling_query = 'CH{0}:COUP?'.format
+    coupling_parse = str
+
+    probe_factor_write = 'CH{0}:PRO {1}'.format
+    probe_factor_query = 'CH{0}:PRO?'.format
+    probe_factor_parse = NotImplementedAttribute('probe_factor_parse')
+
+    termination_write = 'CH{0}:TER {1}'.format
+    termination_query = 'CH{1}:TER?'.format
+    termination_parse = str  # XXX Is this correct?
+
+    # scale, position, etc.
+
+    invert_write = 'CH{0}:INV {1}'.format
+    invert_query = 'CH{0}:INV?'.format
+    invert_parse = bool
+
+    vert_scale_write = 'CH{0}:SCA {1}'.format
+    vert_scale_query = 'CH{0}:SCA?'.format
+    @classmethod
+    def vert_scale_parse(cls, s):
+        return float(s) * cls.VERT_SCALE_UNIT
+
+    vert_position_write = 'CH{0}:POS {1}'.format
+    vert_position_query = 'CH{0}:POS?'.format
+    vert_position_parse = float
+
+    horiz_scale_write = 'HOR:SCA {0}'.format
+    horiz_scale_query = 'HOR:SCA?'.format
+    @classmethod
+    def horiz_scale_parse(cls, s):
+        return float(s) * cls.HORIZ_SCALE_UNIT
+
+    horiz_position_write = 'HOR:POS {0}'.format
+    horiz_position_query = 'HOR:POS?'.format
+    horiz_position_parse = float
+
+    # TRIGGER
+
+    TRIGGER_SOURCES = ['AUX', 'LINE', 'CH1', 'CH2', 'CH3', 'CH4']
+    TRIGGER_MODES = ["AUTO", "NORM"]
+
+    # XXX Tek scope servers had TRIG:A:...
+    # I've taken the A out to see if it still works, because that would mean
+    # Agi and Tek code is the same.
+
+    trigger_slope_write = 'TRIG:EDGE:SLO {0}'.format
+    trigger_slope_query = 'TRIG:EDGE:SLO?'.format
+    trigger_slope_parse = lambda x: x  # Is this right?
+
+    trigger_level_write = 'TRIG:LEV {0}'.format
+    trigger_level_query = 'TRIG:LEV?'.format
+    trigger_level_parse = int  # XXX Is this right?
+
+    trigger_source_write = 'TRIG:EDGE:SOU {0}'.format
+    trigger_source_query = 'TRIG:EDGE:SOU?'.format
+    trigger_source_parse = str  # XXX Is this correct?
+
+    trigger_mode_write = 'TRIG:MOD {0}'.format
+    trigger_mode_query = 'TIRG:MOD?'.format
+    trigger_mode_parse = str  # XXX is this correct?
+
+    # MATH
+
+    math_define_write = 'MATH{0}:DEFI {1}'.format
+    math_define_query = 'MATH{0}:DEFI?'.format
+    math_define_parse = lambda x: x
+
+    math_vert_scale_write = 'MATH{0}:VERT:SCA {1}'.format
+    math_vert_scale_query = 'MATH{0}:VERT:SCA?'.format
+    @classmethod
+    def math_vert_scale_parse(cls, s):
+        return float(s) * cls.MATH_VERT_SCALE_UNIT
 
 
 class Tektronix2014BWrapper(TektronixWrapper):
@@ -537,8 +546,7 @@ class AgilentDSO7104BWrapper(AgilentWrapper):
 
 class AgilentDSOX4104AWrapper(AgilentWrapper):
 
-    IMPEDANCES = [50, 1000]
-    IMPEDANCE_STRS = {1000: 'ONEM', 50: 'FIFT'}
+    # CHANNEL
 
     HORIZ_SCALE_UNIT = U.Unit('s')
     horiz_scale_write = 'TIM:SCAL {0}'.format
@@ -555,6 +563,8 @@ class AgilentDSOX4104AWrapper(AgilentWrapper):
     coupling_query = 'CHAN{0}:COUP?'.format
     coupling_parse = str
 
+    IMPEDANCES = [50, 1000]
+    IMPEDANCE_STRS = {1000: 'ONEM', 50: 'FIFT'}
     @classmethod
     def termination_write(cls, ch, val):
         return 'CHAN{0}:IMP {1}'.format(ch, cls.IMPEDANCE_STRS[val])
