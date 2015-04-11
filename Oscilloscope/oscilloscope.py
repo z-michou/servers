@@ -54,23 +54,136 @@ class NotImplementedAttribute(object):
         self.label = label
 
     def __get__(self, inst, cls):
-        raise AttributeError("Attribute %s of class %s not implemented"\
-            %(self.label, cls))
+        """Raise AttributeError because this attribute should be overridden"""
+        raise AttributeError("Attribute {} of class {} not implemented".format(
+            self.label,
+            cls
+        )
 
 
 class OscilloscopeWrapper(GPIBDeviceWrapper):
+    """Base class for oscilloscope wrappers"""
 
-    # SYSTEM
+    ############################################################################
+    # GPIB string generation functions
+    #
+    # The following code provides functions which, when evaluated, produce GPIB
+    # strings to be sent to the oscilloscope. The functions are actually the
+    # .format methods of string literals. Consider the string
+    # 'CH{0}:COUP {1}'.
+    # This string has a .format method, which is a function that takes two
+    # arguments. When you call that function with arguments 0 and "ON", the
+    # result is
+    # 'CH0:COUP ON'
+    # which is the GPIB string that turns on channel 0.
+
     # CHANNEL
+
+    CHANNEL_STATES = ['ON', 'OFF']
+
+    # input
+
+    channel_on_off_write = NotImplementedAttribute('channel_on_off_write')
+    channel_on_off_query = NotImplementedAttribute('channel_on_off_query')
+    channel_on_off_parse = NotImplementedAttribute('channel_on_off_parse')
+
+    COUPLINGS = ['AC', 'DC']
+    coupling_write = 'CH{0}:COUP {1}'.format
+    coupling_query = 'CH{0}:COUP?'.format
+    coupling_parse = str
+
+    PROBE_FACTORS = NotImplementedAttribute('PROBE_FACTORS')
+    probe_factor_write = 'CH{0}:PRO {1}'.format
+    probe_factor_query = 'CH{0}:PRO?'.format
+    probe_factor_parse = NotImplementedAttribute('probe_factor_parse')
+
+    IMPEDANCES = NotImplementedAttribute('IMPEDANCES')
+    termination_write = 'CH{1}:TER {1}'.format
+    termination_query = 'CH{1}:TER?'.format
+    termination_parse = str  # XXX Is this correct?
+
+    # scale, position, etc.
+
+    invert_write = 'CH{0}:INV {1}'.format
+    invert_query = 'CH{0}:INV?'.format
+    invert_parse = bool
+
+    VERT_SCALE_UNIT = NotImplementedAttribute('VERT_SCALE_UNIT')
+    vert_scale_write = 'CH{0}:SCA {1}'.format
+    vert_scale_query = 'CH{0}:SCA?'.format
+    @classmethod
+    def vert_scale_parse(cls, s):
+        return float(s) * cls.VERT_SCALE_UNIT
+
+    VERT_POSITION_UNIT = NotImplementedAttribute('VERT_POSITION_UNIT')
+    vert_position_write = 'CH{0}:POS {1}'.format
+    vert_position_query = 'CH{0}:POS?'.format
+    vert_position_parse = float
+
+    HORIZ_SCALE_UNIT = NotImplementedAttribute('HORIZ_SCALE_UNIT')
+    horiz_scale_write = 'HOR:SCA {0}'.format
+    horiz_scale_query = 'HOR:SCA?'.format
+    @classmethod
+    def horiz_scale_parse(cls, s):
+        return float(s) * cls.HORIZ_SCALE_UNIT
+
+    HORIZ_POSITION_UNIT = NotImplementedAttribute('HORIZ_POSITION_UNIT')  # Used?
+    horiz_position_write = 'HOR:POS {0}'.format
+    horiz_position_query = 'HOR:POS?'.format
+    horiz_position_parse = float
+
     # TRIGGER
+
+    # XXX Tek scope servers had TRIG:A:...
+    # I've taken the A out to see if it still works, because that would mean
+    # Agi and Tek code is the same.
+
+    TRIGGER_SLOPES = NotImplementedAttribute('TRIGGER_SLOPES')
+    trigger_slope_write = 'TRIG:EDGE:SLO {0}'.format
+    trigger_slope_query = 'TRIG:EDGE:SLO?'.format
+    trigger_slope_parse = lambda x: x  # Is this right?
+
+    TRIGGER_LEVEL_UNIT = NotImplementedAttribute('TRIGGER_LEVEL_UNIT')
+    trigger_level_write = 'TRIG:LEV {0}'.format
+    trigger_level_query = 'TRIG:LEV?'.format
+    trigger_level_parse = int  # XXX Is this right?
+
+    TRIGGER_SOURCES = ['AUX', 'LINE', 'CH1', 'CH2', 'CH3', 'CH4']
+    trigger_source_write = 'TRIG:EDGE:SOU {0}'.format
+    trigger_source_query = 'TRIG:EDGE:SOU?'.format
+    trigger_source_parse = str  # XXX Is this correct?
+
+    TRIGGER_MODES = ["AUTO", "NORM"]
+    trigger_mode_write = 'TRIG:MOD {0}'.format
+    trigger_mode_query = 'TIRG:MOD?'.format
+    trigger_mode_parse = str  # XXX is this correct?
+
     # ACQUISITION
+
+    num_averages_write = NotImplementedAttribute('num_averages_write')
+    num_averages_query = NotImplementedAttribute('num_averages_query')
+    num_averages_parse = NotImplementedAttribute('num_averages_parse')
+    
     # MATH
+
+    math_define_write = NotImplementedAttribute('math_define_write')
+    math_define_query = NotImplementedAttribute('math_define_query')
+    math_define_parse = NotImplementedAttribute('math_define_parse')
+
+    MATH_VERT_SCALE_UNIT = NotImplementedAttribute('MATH_VERT_SCALE_UNIT')
+    math_vert_scale_write = 'MATH{0}:VERT:SCA {1}'.format
+    math_vert_scale_query = 'MATH{0}:VERT:SCA?'.format
+    @classmethod
+    def math_vert_scale_parse(cls, s):
+        return float(s) * cls.MATH_VERT_SCALE_UNIT
+
     # MEASURE
 
+    # End GPIB string generation functions #####################################
 
-    # String parsing
 
-    # SYSTEM
+    ############################################################################
+    # Functions which actually communicate wit the hardware
 
     @inlineCallbacks
     def reset(self):
@@ -83,6 +196,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         yield dev.write('*CLS')
 
     # CHANNEL
+    # input
 
     @inlineCallbacks
     def channel_on_off(self, channel, state=None):
@@ -100,8 +214,6 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
             yield self.write(self.channel_on_off_write(channel, state))
         resp = yield self.query(self.channel_on_off_query(channel))
         returnValue(self.channel_on_off_parse(resp))
-
-    # probe settings
 
     @inlineCallbacks
     def coupling(self, channel, coupling=None):
@@ -190,11 +302,10 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
         Returns:
             Vertical scale in Voltage units.
         """
-        if scale is not None:
-            scale_float = scale[self.VERT_SCALE_UNIT]
-            scale_str = format(scale_float,'E')
-            yield self.write(self.vert_scale_write(channel, scale_str))
-        resp = yield self.query(self.vert_scale_query(channel))
+        is scale is not None:
+            scale_str = format(scale[self.VERT_SCALE_UNIT], 'E')
+            yield dev.write(self.vert_scale_write(channel, scale_str))
+        resp = yield dev.query(self.vert_scale_query(channel))
         returnValue(self.vert_scale_parse(resp))
 
     @inlineCallbacks
@@ -317,13 +428,20 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
     # ACQUISITION
 
     @inlineCallbacks
-    def average(self, num_averages):
-        """Go to average mode
+    def num_averages(self, num_averages=None):
+        """Set number of averages for average mode
 
         Args:
-            num_averages (int): Number of averages.
+            num_averages (int): Number of averages. If None (the default) then
+                we just query the number of averages.
+
+        Returns:
+            Number of averages.
         """
-        yield self.write(self.average_write(num_averages))
+        if num_averages is not None:
+            yield self.write(self.num_averages_write(num_averages))
+        resp = yield self.query(self.num_averages_query())
+        returnValue(self.num_averages_parse(resp))
 
     # MATH
 
@@ -362,30 +480,7 @@ class OscilloscopeWrapper(GPIBDeviceWrapper):
 
     # MEASURE
 
-    @inlineCallbacks
-    def set_measure_rms(self, channel):
-        """Set a channel to measure rms voltage
-
-        Args:
-            channel (int): Which channel to measure.
-
-        Returns:
-            None
-        """
-        yield self.write(self.measure_rms_write(channel))
-
-    @inlineCallbacks
-    def get_measure_rms(self, channel):
-        """Get rms measurement from a channel.
-
-        Args:
-            channel (int): Channel to measure.
-
-        Returns
-        """
-        resp = yield self.query(self.measure_rms_query(channel))
-        result = self.measure_rms_parse(resp)
-        returnValue(result)
+    #End functions which communicate with hardware #############################
 
 
 # TEKTRONIX OSCILLOSCOPES
@@ -401,6 +496,7 @@ class TektronixWrapper(OscilloscopeWrapper):
     # CHANNEL
 
     CHANNEL_STATES = ['ON', 'OFF']
+
     channel_on_off_write = 'SEL:CH{0} {1}'.format
     channel_on_off_query = 'SEL:CH{0}'.format
     channel_on_off_parse = str
@@ -497,10 +593,9 @@ class Tektronix2014BWrapper(TektronixWrapper):
 class Tektronix5054BWrapper(TektronixWrapper):
     """Wrapper for a Tektronix 5054B"""
 
-    PROBE_FACTORS = NotImplementedAttribute('PROBE_FACTORS')
+    PROBE_FACTORS =
+    IMPEDANCES = [50*Ohm, 1E6*Ohm]
 
-    COUPLINGS = ['AC', 'DC', 'GND']
-    IMPEDACES = [50*Ohm, 1E6*Ohm]
 
     VERT_DIVISIONS = NotImplementedAttribute('VERT_DIVISIONS')  # 8
     HORIZ_DIVISIONS = NotImplementedAttribute('HORIZ_DIVISIONS')  # 10
@@ -509,11 +604,6 @@ class Tektronix5054BWrapper(TektronixWrapper):
 # AGILENT OSCILLOSCOPES
 
 class AgilentWrapper(OscilloscopeWrapper):
-
-    VERT_POSITION_UNIT = NotImplementedAttribute('VERT_POSITION_UNIT')
-    VERT_SCALE_UNIT = NotImplementedAttribute('VERT_SCALE_UNIT')
-    HORIZ_SCALE_UNIT = NotImplementedAttribute('HORIZ_SCALE_UNIT')
-    MATH_VERT_SCALE_UNIT = NotImplementedAttribute('MATH_VERT_SCALE_UNIT')
 
     channel_on_off_write = 'CHAN{0}:DISP {1}'.format
     channel_on_off_query = 'CHAN{0}:DISP?'.format
@@ -600,7 +690,9 @@ class AgilentDSOX4104AWrapper(AgilentWrapper):
 
 
 class OscilloscopeServer(GPIBManagedServer):
-    name = 'oscilloscope server'
+    """Manges communication with oscilloscopes. ALL the oscilloscopes."""
+
+    name = 'oscilloscope_server'
 
     deviceWrappers = {
                      'Tektronix 2014B': Tektronix2014BWrapper,
