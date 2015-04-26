@@ -525,7 +525,6 @@ class HDF5MetaData(object):
     def numComments(self):
         return len(self.dataset.attrs['Comments'])
 
-
 class SimpleHDF5Data(HDF5MetaData):
     """
     Dataset backed by HDF5 file.  This is a very simple implementation
@@ -591,8 +590,31 @@ class SimpleHDF5Data(HDF5MetaData):
     def hasMore(self, pos):
         return pos < len(self)
 
+def open_hdf5_file(filename):
+    """Factory for HDF5 files.  
 
-def create_backend(filename):
+    We check the version of the file to construct the proper class.  Currently, only two
+    options exist: version 1.0.0 -> legacy format, 2.0.0 -> extended format
+    """
+    fh = SelfClosingFile(h5py.File, open_args=(filename, 'a'))
+    version = self.file.attrs['Version']
+    if version[0] == 1:
+        retrun SimpleHDF5Data(fh)
+    else:
+        return ExtendedHDF5Data(fh)
+
+
+def create_backend(filename, title, indep, dep, extended):
+    hdf5_file = filename + '.hdf5'
+    fh = SelfClosingFile(h5py.File, open_args=(hdf5_file, 'a'))
+    if extended:
+        data = ExtendedHDF5Data(fh)
+    else:
+        data = SimpleHDF5Data(fh)
+    data.initialize_info(title, indep, dep)
+    return data
+    
+def open_backend(filename):
     """Make a data object that manages in-memory and on-disk storage for a dataset.
 
     filename should be specified without a file extension. If there is an existing
@@ -607,5 +629,8 @@ def create_backend(filename):
             return CsvNumpyData(csv_file)
         else:
             return CsvListData(csv_file)
-    else:
+    elif os.path.exists(hdf_file):
+        return open_hdf5_file(hdf_file)
         return SimpleHDF5Data(hdf5_file)
+    else: # We should have already cehcked, this should not happen
+        raise errors.DatasetNotFoundError(filename)

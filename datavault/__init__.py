@@ -231,13 +231,16 @@ class Session(object):
                 filenames.append(base)
         return filenames
 
-    def newDataset(self, title, independents, dependents):
+    def newDataset(self, title, independents, dependents, extended=False):
         num = self.counter
         self.counter += 1
         self.modified = datetime.now()
 
         name = '%05d - %s' % (num, title)
-        dataset = Dataset(self, name, title, create=True, independents=independents, dependents=dependents)
+        dataset = Dataset(self, name, title, create=True, 
+                          independents=independents, 
+                          dependents=dependents, 
+                          extended=extended)
         self.datasets[name] = dataset
         self.access()
 
@@ -325,7 +328,7 @@ class Dataset(object):
     All the actual data or metadata access is proxied through to a
     backend object.
     """
-    def __init__(self, session, name, title=None, num=None, create=False, independents=[], dependents=[]):
+    def __init__(self, session, name, title=None, num=None, create=False, independents=[], dependents=[], extended=False):
         self.hub = session.hub
         self.name = name
         file_base = os.path.join(session.dir, filename_encode(name))
@@ -333,13 +336,13 @@ class Dataset(object):
         self.param_listeners = set()
         self.comment_listeners = set()
 
-        self.data = backend.create_backend(file_base)
         if create:
             indep = [self.makeIndependent(i) for i in independents]
             dep = [self.makeDependent(d) for d in dependents]
-            self.data.initialize_info(title, indep, dep)
+            self.data = backend.create_backend(file_base, title, indep, dep, extended)
             self.save()
         else:
+            self.data = backend.open_backend(file_base)
             self.load()
             self.access()
 

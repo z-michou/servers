@@ -308,6 +308,44 @@ class DataVault(LabradServer):
         c['writing'] = True
         return c['path'], c['dataset']
 
+    @setting(1009, name='s', 
+             independents='*(ss*is)',
+             dependents='*(sss*is)',
+             returns=['ss'])
+    def new_ex(self, name, independents, dependents):
+        """Create a new extended dataset
+
+        Independents are specified as: (label, shape, type[unit])
+        Dependents are specified as: (label, legend, shape, type[unit])
+
+        Label and legend have the smae meaining as in regular new()
+        shape is a list of integers representing the shape of the array.  For
+            A scalar column, use [].
+        type is the column data type including a type tag if applicable.  Types use
+            the labrad typetags, but only scalar types are supported
+            i:          32 bit integer
+            v[unit]:    double precision floating point with unit.  Use v[] for scalar
+            c[unit]:    double precision complex with unit.  Use c[] for scalar
+            s:          string.  The string must be plain ASCII or UTF-8 encoded 
+                        unicode (until labrad has native unicode support)
+                        Arbitrary binary data is *not* supported.
+            t:          Timestamp
+
+            Note that any dataset created with this function that does not conform
+            to the old style restrictions will show up as an empty dataset to legacy
+            code.  The name and parameters will be there, but no actual data.
+
+            The legacy format requires each column be a scalar v[unit] type.
+        """
+        session = self.getSession(c)
+        dataset = session.newDataset(name, independents, dependents, True)
+        c['dataset'] = dataset.name # not the same as name; has number prefixed
+        c['datasetObj'] = dataset
+        c['filepos'] = 0 # start at the beginning
+        c['commentpos'] = 0
+        c['writing'] = True
+        return c['path'], c['dataset']
+
     @setting(10, name=['s', 'w'], append='b', returns='(*s{path}, s{name})')
     def open(self, c, name, append=False):
         """Open a Dataset for reading.
@@ -342,6 +380,19 @@ class DataVault(LabradServer):
             raise errors.ReadOnlyError()
         dataset.addData(data)
 
+    @setting(1020, data='?', returns='')
+    def add_ex(self, c, data):
+        """Add data to the current dataset in the extended format.
+
+        Data should be a list of clusters suitable for the current
+        dataset.  For instance, for a dataset with a timestamp, an
+        integer, and a voltage the data type should be *(tiv[V]).
+
+        Because pylabrad is inefficient at packing and unpacking lists
+        of clusters, consider using add_transpose for performance.
+        """
+        pass
+
     @setting(21, limit='w', startOver='b', returns='*2v')
     def get(self, c, limit=None, startOver=False):
         """Get data from the current dataset.
@@ -358,6 +409,17 @@ class DataVault(LabradServer):
         ctx = ExtendedContext(self, c.ID)
         dataset.keepStreaming(ctx, c['filepos'])
         return data
+
+    @setting(1021, limit='w', startOver='b', retunrs='?')
+    def get_ex(self, c, limit=None, startover=False):
+        """Get data from the current dataset in the extended format.
+
+        Data is returned as *(...).  That is, a list of clusters, one per
+        row.  Because of the inefficiency of python flattening and 
+        unflattening cluster arrays, consider using get_transpose for
+        performance.
+        """
+        pass
 
     @setting(100, returns='(*(ss){independents}, *(sss){dependents})')
     def variables(self, c):
