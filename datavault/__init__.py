@@ -337,8 +337,12 @@ class Dataset(object):
         self.comment_listeners = set()
 
         if create:
-            indep = [self.makeIndependent(i) for i in independents]
-            dep = [self.makeDependent(d) for d in dependents]
+            if not extended:
+                indep = [self.makeIndependent(i) for i in independents]
+                dep = [self.makeDependent(d) for d in dependents]
+            else:
+                indep = independents
+                dep = dependents
             self.data = backend.create_backend(file_base, title, indep, dep, extended)
             self.save()
         else:

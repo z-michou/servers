@@ -309,18 +309,18 @@ class DataVault(LabradServer):
         return c['path'], c['dataset']
 
     @setting(1009, name='s', 
-             independents='*(ss*is)',
-             dependents='*(sss*is)',
+             independents='*(s*is)',
+             dependents='*(ss*is)',
              returns=['ss'])
-    def new_ex(self, name, independents, dependents):
+    def new_ex(self, c, name, independents, dependents):
         """Create a new extended dataset
 
         Independents are specified as: (label, shape, type[unit])
         Dependents are specified as: (label, legend, shape, type[unit])
 
-        Label and legend have the smae meaining as in regular new()
+        Label and legend have the same meaining as in regular new()
         shape is a list of integers representing the shape of the array.  For
-            A scalar column, use [].
+            A scalar column, use [1].
         type is the column data type including a type tag if applicable.  Types use
             the labrad typetags, but only scalar types are supported
             i:          32 bit integer
@@ -410,8 +410,8 @@ class DataVault(LabradServer):
         dataset.keepStreaming(ctx, c['filepos'])
         return data
 
-    @setting(1021, limit='w', startOver='b', retunrs='?')
-    def get_ex(self, c, limit=None, startover=False):
+    @setting(1021, limit='w', startOver='b', returns='?')
+    def get_ex(self, c, limit=None, startOver=False):
         """Get data from the current dataset in the extended format.
 
         Data is returned as *(...).  That is, a list of clusters, one per

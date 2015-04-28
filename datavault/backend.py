@@ -4,6 +4,7 @@ import base64
 import time
 import datetime
 import h5py
+import re
 from twisted.internet import reactor
 
 try:
@@ -525,6 +526,103 @@ class HDF5MetaData(object):
     def numComments(self):
         return len(self.dataset.attrs['Comments'])
 
+class ExtendedHDF5Data(HDF5MetaData):
+    """Dataset backed by HDF5 file
+
+    This supports the extended dataset format which allows each column
+    to have a different type and to be arrays themselves.
+    """
+
+    def __init__(self, fh):
+        self._file = fh
+        if 'Version' not in self.file.attrs:
+            self.file.attrs['Version'] = (2, 0, 0)
+
+    def initialize_info(self, title, indep, dep):
+        """
+        This is used to initialize the columns when creating a new dataset"
+        """
+        dtype = []
+        for idx, col in enumerate(indep+dep):
+            shape = col[-2]
+            ttag = col[-1]
+            if len(shape)==1 and shape[0]==1:
+                shapestr = str(tuple(shape))
+            else:
+                shapestr = ""
+            varname = 'f%d' % idx
+            m = re.match('^(?:([ist])|(?:([vc])(\[\w*\])))$', ttag)
+            if not m:
+                raise ValueError('Invalid type tag %s' % ttag)
+            if m.group(1) == 'i':
+                dtype.append((varname, shapestr+"i4"))
+            elif m.group(1) == 's':
+                if shapestr:
+                    raise ValueError("Cannot create string array column")
+                dtype.append((varname, h5py.special_dtype(vlen=str)))
+            elif m.group(1) == 't':
+                dtype.append((varname, shapestr+"i8"))
+            elif m.group(2) == 'v':
+                dtype.append((varname, shapestr+"f8"))
+            elif m.group(2) == 'c':
+                dtype.append((varname, shapestr+"c16"))
+            else:
+                raise RuntimeError("Invalid type tag %s, but succesfully parsed as %s" % (ttag, m.groups()))
+
+        self.file.create_dataset("DataVault", (0,), dtype=dtype, maxshape=(None,))
+        HDF5MetaData.initialize_info(self, title, indep, dep)
+
+    @property
+    def file(self):
+        return self._file()
+    @property
+    def dataset(self):
+        return self.file["DataVault"]
+
+    def addDataTranspose(self, data):
+        """
+        Add data from a list of column arrays.
+        """
+        new_rows = data[0].shape[0]
+        old_rows = self.dataset.shape[0]
+        self.dataset.resize((old_rows + new_rows,))
+        new_data = np.zeros((new_rows,), self.dataset.dtype)
+        for idx,col in enumerate(data):
+            new_data['f%d'%idx,:] = col
+        self.dataset[old_rows:(old_rows+new_rows)] = new_data
+
+    def addData(self, data):
+        """
+        Adds one or more rows or data from a numpy struct array.
+        """
+        new_rows = data.shape[0]
+        old_rows = self.dataset.shape[0]
+        self.dataset.resize((old_rows + new_rows,))
+        self.dataset[old_rows:(old_rows+new_rows)] = data
+
+    def getData(self, limit, start):
+        """
+        Get up to limit rows from a dataset.
+        """
+        if limit is None:
+            struct_data = self.dataset[start:]
+        else:
+            struct_data = self.dataset[start:start+limit]
+        return struct_data, start+data.shape[0]
+
+    def getDataTranspose(self, limit, start):
+        struct_data, newPos = self.getData(limit, start)
+        columns = []
+        for idx in range(len(struct_data.dtype)):
+            columns.append(struct_data['f%d'%idx])
+        return columns, new_pos
+
+    def __len__(self):
+        return self.dataset.shape[0]
+
+    def hasMore(self, pos):
+        return pos < len(self)
+        
 class SimpleHDF5Data(HDF5MetaData):
     """
     Dataset backed by HDF5 file.  This is a very simple implementation
@@ -533,8 +631,8 @@ class SimpleHDF5Data(HDF5MetaData):
     tree of datasets within one file.  Here, the single dataset is stored
     in /DataVault within the HDF5 file.
     """
-    def __init__(self, filename):
-        self._file = SelfClosingFile(h5py.File, open_args=(filename, 'a'))
+    def __init__(self, fh):
+        self._file = fh
         if 'Version' not in self.file.attrs:
             self.file.attrs['Version'] = (1, 0, 0)
         self.version = self.file.attrs['Version']
@@ -599,7 +697,7 @@ def open_hdf5_file(filename):
     fh = SelfClosingFile(h5py.File, open_args=(filename, 'a'))
     version = self.file.attrs['Version']
     if version[0] == 1:
-        retrun SimpleHDF5Data(fh)
+        return SimpleHDF5Data(fh)
     else:
         return ExtendedHDF5Data(fh)
 
@@ -631,6 +729,5 @@ def open_backend(filename):
             return CsvListData(csv_file)
     elif os.path.exists(hdf_file):
         return open_hdf5_file(hdf_file)
-        return SimpleHDF5Data(hdf5_file)
     else: # We should have already cehcked, this should not happen
         raise errors.DatasetNotFoundError(filename)
