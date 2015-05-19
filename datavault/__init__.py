@@ -2,6 +2,7 @@ import base64
 from datetime import datetime
 import os
 import re
+import collections
 import weakref
 
 from labrad import types as T
@@ -38,7 +39,6 @@ def filename_decode(name):
 
 def filedir(datadir, path):
     return os.path.join(datadir, *[filename_encode(d) + '.dir' for d in path[1:]])
-
 
 ## time formatting
 
@@ -200,7 +200,10 @@ class Session(object):
         files = os.listdir(self.dir)
         files.sort()
         dirs = [filename_decode(s[:-4]) for s in files if s.endswith('.dir')]
-        datasets = [filename_decode(s[:-4]) for s in files if s.endswith('.ini') and s.lower() != 'session.ini' ]
+        csv_datasets = [filename_decode(s[:-4]) for s in files if s.endswith('.ini') and s.lower() != 'session.ini' ]
+        hdf5_datasets = [filename_decode(s[:-5]) for s in files if s.endswith('.hdf5')]
+        datasets = csv_datasets+hdf5_datasets
+        datasets.sort()
         # apply tag filters
         def include(entries, tag, tags):
             """Include only entries that have the specified tag."""
@@ -337,12 +340,8 @@ class Dataset(object):
         self.comment_listeners = set()
 
         if create:
-            if not extended:
-                indep = [self.makeIndependent(i) for i in independents]
-                dep = [self.makeDependent(d) for d in dependents]
-            else:
-                indep = independents
-                dep = dependents
+            indep = [self.makeIndependent(i, extended) for i in independents]
+            dep = [self.makeDependent(d, extended) for d in dependents]
             self.data = backend.create_backend(file_base, title, indep, dep, extended)
             self.save()
         else:
@@ -355,32 +354,45 @@ class Dataset(object):
     def load(self):
         self.data.load()
 
+    def version(self):
+        v = self.data.version
+        return '.'.join((str(x) for x in v))
+
     def access(self):
         """Update time of last access for this dataset."""
         self.data.access()
         self.save()
 
-    def makeIndependent(self, label):
+    def makeIndependent(self, label, extended):
         """Add an independent variable to this dataset."""
+        if extended:
+            return backend.Independent(*label)
         if isinstance(label, tuple):
             label, units = label
         else:
             label, units = parse_independent(label)
-        return dict(label=label, units=units)
-
-    def makeDependent(self, label):
+        return backend.Independent(label=label, shape=(1,), datatype='v', unit=units)
+    
+    def makeDependent(self, label, extended):
         """Add a dependent variable to this dataset."""
+        if extended:
+            return backend.Dependent(*label)
         if isinstance(label, tuple):
             label, legend, units = label
         else:
             label, legend, units = parse_dependent(label)
-        return dict(category=label, label=legend, units=units)
+        return backend.Dependent(label=label, legend=legend, shape=(1,), datatype='v', unit=units)
 
     def getIndependents(self):
         return self.data.getIndependents()
     
     def getDependents(self):
         return self.data.getDependents()
+
+    def getRowType(self):
+        return self.data.getRowType()
+    def getTransposeType(self):
+        return self.data.getTransposeType()
 
     def addParameter(self, name, data, saveNow=True):
         self.data.addParam(name, data)
@@ -408,16 +420,16 @@ class Dataset(object):
     def getParamNames(self):
         return self.data.getParamNames()
 
-    def addData(self, data):
+    def addData(self, data, transpose=False):
         # append the data to the file
-        self.data.addData(data)
+        self.data.addData(data, transpose)
 
         # notify all listening contexts
         self.hub.onDataAvailable(None, self.listeners)
         self.listeners = set()
 
-    def getData(self, limit, start):
-        return self.data.getData(limit, start)
+    def getData(self, limit, start, transpose=False):
+        return self.data.getData(limit, start, transpose)
 
     def keepStreaming(self, context, pos):
         # keepStreaming does something a bit odd and has a confusing name (ERJ)

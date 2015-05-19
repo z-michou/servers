@@ -3,9 +3,15 @@ import sys
 import base64
 import time
 import datetime
+import collections
 import h5py
 import re
 from twisted.internet import reactor
+
+## Data types for variable defintions
+
+Independent = collections.namedtuple('Independent', ['label', 'shape', 'datatype', 'unit'])
+Dependent = collections.namedtuple('Dependent', ['label', 'legend', 'shape', 'datatype', 'unit'])
 
 try:
     import numpy as np
@@ -107,7 +113,7 @@ class IniData(object):
             sec = 'Independent %d' % (i+1)
             label = S.get(sec, 'Label', raw=True)
             units = S.get(sec, 'Units', raw=True)
-            return dict(label=label, units=units)
+            return Independent(label=label, shape=(1,), datatype='v', unit=units)
         count = S.getint(gen, 'Independent')
         self.independents = [getInd(i) for i in range(count)]
 
@@ -116,7 +122,7 @@ class IniData(object):
             label = S.get(sec, 'Label', raw=True)
             units = S.get(sec, 'Units', raw=True)
             categ = S.get(sec, 'Category', raw=True)
-            return dict(label=label, units=units, category=categ)
+            return Dependent(label=categ, legend=label, shape=(1,), datatype='v', unit=units)
         count = S.getint(gen, 'Dependent')
         self.dependents = [getDep(i) for i in range(count)]
         
@@ -164,15 +170,15 @@ class IniData(object):
         for i, ind in enumerate(self.independents):
             sec = 'Independent %d' % (i+1)
             S.add_section(sec)
-            S.set(sec, 'Label', ind['label'])
-            S.set(sec, 'Units', ind['units'])
+            S.set(sec, 'Label', ind.label)
+            S.set(sec, 'Units', ind.units)
 
         for i, dep in enumerate(self.dependents):
             sec = 'Dependent %d' % (i+1)
             S.add_section(sec)
-            S.set(sec, 'Label',    dep['label'])
-            S.set(sec, 'Units',    dep['units'])
-            S.set(sec, 'Category', dep['category'])
+            S.set(sec, 'Label',    dep.legend)
+            S.set(sec, 'Units',    dep.unit)
+            S.set(sec, 'Category', dep.label)
 
         for i, par in enumerate(self.parameters):
             sec = 'Parameter %d' % (i+1)
@@ -204,10 +210,24 @@ class IniData(object):
         self.accessed = datetime.datetime.now()
 
     def getIndependents(self):
-        return [(i['label'], i['units']) for i in self.independents]
+        return self.independents
 
     def getDependents(self):
-        return [(d['category'], d['label'], d['units']) for d in self.dependents]
+        return self.dependents
+
+    def getRowType(self):
+        units = []
+        for var in self.independents+self.dependents:
+            units.append("v[%s]"%var.unit)
+        type_tag = '*(' + (','.join(units)) + ')'
+        return type_tag
+
+    def getTransposeType(self):
+        units = []
+        for var in self.independents+self.dependents:
+            units.append('*v[%s]'%var.unit)
+        type_tag = '(' + (','.join(units)) + ')'
+        return type_tag
 
     def addParam(self, name, data):
         for p in self.parameters:
@@ -260,6 +280,10 @@ class CsvListData(IniData):
         return self._file()
 
     @property
+    def version(self):
+        return np.asarray([1,0,0], np.int32)
+
+    @property
     def data(self):
         """Read data from file on demand.
 
@@ -289,7 +313,9 @@ class CsvListData(IniData):
             f.write(', '.join(DATA_FORMAT % v for v in row) + '\r\n')
         f.flush()
 
-    def addData(self, data):
+    def addData(self, data, transpose):
+        if transpose:
+            raise RuntimeError("Transpose specified for simple data format: not supported")
         if not len(data) or not isinstance(data[0], list):
             data = [data]
         if len(data[0]) != self.cols:
@@ -298,7 +324,9 @@ class CsvListData(IniData):
         # append the data to the file
         self._saveData(data)
 
-    def getData(self, limit, start):
+    def getData(self, limit, start, transpose):
+        if transpose:
+            raise RuntimeError("Transpose specified for simple data format: not supported")
         if limit is None:
             data = self.data[start:]
         else:
@@ -369,7 +397,9 @@ class CsvNumpyData(CsvListData):
         np.savetxt(f, data, fmt=DATA_FORMAT, delimiter=',', newline='\r\n')
         f.flush()
 
-    def addData(self, data):
+    def addData(self, data, transpose):
+        if transpose:
+            raise RuntimeError("Transpose specified for simple data format: not supported")
         data = np.asarray(data)
 
         # reshape single row
@@ -389,7 +419,10 @@ class CsvNumpyData(CsvListData):
         # append data to file
         self._saveData(data)
 
-    def getData(self, limit, start):
+    def getData(self, limit, start, transpose):
+        if transpose:
+            raise RuntimeError("Transpose specified for simple data format: not supported")
+
         if limit is None:
             data = self.data[start:]
         else:
@@ -442,11 +475,17 @@ class HDF5MetaData(object):
         self.dataset.attrs['Comments'] = np.ndarray((0,), dtype=comment_type)
 
         for idx, i in enumerate(indep):
-            (label, units) = i['label'], i['units']
-            self.dataset.attrs['Independent%d'%idx] = (label, units)
+            self.dataset.attrs['Independent%d.label'%idx] = i.label
+            self.dataset.attrs['Independent%d.shape'%idx] = i.shape
+            self.dataset.attrs['Independent%d.datatype'%idx] = i.datatype
+            self.dataset.attrs['Independent%d.unit'%idx] = i.unit
+
         for idx, d, in enumerate(dep):
-            (label, legend, units) = d['category'], d['label'], d['units']
-            self.dataset.attrs['Dependent%d'%idx] = (label, legend, units)
+            self.dataset.attrs['Dependent%d.label'%idx] = d.label
+            self.dataset.attrs['Dependent%d.legend'%idx] = d.legend
+            self.dataset.attrs['Dependent%d.shape'%idx] = d.shape
+            self.dataset.attrs['Dependent%d.datatype'%idx] = d.datatype
+            self.dataset.attrs['Dependent%d.unit'%idx] = d.unit
 
     def access(self):
         self.dataset.attrs['Access Time'] = time.time()
@@ -454,22 +493,72 @@ class HDF5MetaData(object):
     def getIndependents(self):
         rv = []
         for idx in xrange(sys.maxint):
-            key = "Independent%d"%idx
+            key = "Independent%d.label"%idx
             if key in self.dataset.attrs:
-                val = self.dataset.attrs[key]
-                rv.append((str(val[0]), str(val[1])))
+                label = self.dataset.attrs['Independent%d.label'%idx]
+                shape = self.dataset.attrs['Independent%d.shape'%idx]
+                datatype = self.dataset.attrs['Independent%d.datatype'%idx]
+                unit = self.dataset.attrs['Independent%d.unit'%idx]
+                rv.append(Independent(label, shape, datatype, unit))
             else:
                 return rv
 
     def getDependents(self):
         rv = []
         for idx in xrange(sys.maxint):
-            key = "Dependent%d"%idx
+            key = "Dependent%d.label"%idx
             if key in self.dataset.attrs:
-                val = self.dataset.attrs[key]
-                rv.append((str(val[0]), str(val[1]), str(val[2])))
+                label = self.dataset.attrs['Dependent%d.label'%idx]
+                legend = self.dataset.attrs['Dependent%d.legend'%idx]
+                shape = self.dataset.attrs['Dependent%d.shape'%idx]
+                datatype = self.dataset.attrs['Dependent%d.datatype'%idx]
+                unit = self.dataset.attrs['Dependent%d.unit'%idx]
+                rv.append(Dependent(label, legend, shape, datatype, unit))
             else:
                 return rv
+
+    def getRowType(self):
+        column_types = []
+        for col in self.getIndependents()+self.getDependents():
+            base_type = col.datatype
+            if base_type in ['v', 'c']:
+                unit_tag = '[%s]'%col.unit
+            else:
+                unit_tag = ''
+            if len(col.shape) > 1:
+                shape_tag = '*%d'%(len(col.shape),)
+                comment = '{' + ','.join([str(s) for s in col.shape]) + '}'
+            elif col.shape[0] > 1:
+                shape_tag = '*'
+                comment = '{%d}' % col.shape[0]
+            else:
+                shape_tag = ''
+                comment = ''
+            print shape_tag+base_type+unit_tag+comment
+            column_types.append(shape_tag+base_type+unit_tag+comment)
+        type_tag = '*(' + (','.join(column_types)) + ')'
+        return type_tag
+
+    def getTransposeType(self):
+        column_type = []
+        for col in self.getIndependents()+self.getDependents():
+            base_type = col.datatype
+            if base_type in ['v', 'c']:
+                unit_tag = '[%s]'%col.unit
+            else:
+                unit_tag = ''
+            if len(col.shape) > 1:
+                shape_tag = '*%d'%(len(col.shape)+1,)
+                comment = '{' + 'N,' + ','.join([str(s) for s in col.shape]) + '}'
+            elif col.shape[0] > 1:
+                shape_tag = '*2'
+                comment = '{N,%d}'%(col.shape[0],)
+            else:
+                shape_tag = '*'
+                comment = ''
+            column_type.append(shape_tag+base_type+unit_tag+comment)
+        type_tag = '(' + (','.join(column_type)) + ')'
+        return type_tag
 
     def addParam(self, name, data):
         keyname = 'Param.%s' % (name,)
@@ -536,7 +625,8 @@ class ExtendedHDF5Data(HDF5MetaData):
     def __init__(self, fh):
         self._file = fh
         if 'Version' not in self.file.attrs:
-            self.file.attrs['Version'] = (2, 0, 0)
+            self.file.attrs['Version'] = np.asarray([3, 0, 0], dtype=np.int32)
+        self.version = np.asarray(self.file.attrs['Version'], np.int32)
 
     def initialize_info(self, title, indep, dep):
         """
@@ -544,30 +634,30 @@ class ExtendedHDF5Data(HDF5MetaData):
         """
         dtype = []
         for idx, col in enumerate(indep+dep):
-            shape = col[-2]
-            ttag = col[-1]
+            shape = col.shape
+            ttag = col.datatype
+            unit = col.unit
             if len(shape)==1 and shape[0]==1:
-                shapestr = str(tuple(shape))
-            else:
                 shapestr = ""
+            else:
+                shapestr = str(tuple(shape))
             varname = 'f%d' % idx
-            m = re.match('^(?:([ist])|(?:([vc])(\[\w*\])))$', ttag)
-            if not m:
-                raise ValueError('Invalid type tag %s' % ttag)
-            if m.group(1) == 'i':
+            if unit!='' and ttag not in ['v', 'c']:
+                raise RuntimeError("Unit %s specfied for datatype %s.  Only v and c may have units" % (unit, ttag))
+            if ttag=='i':
                 dtype.append((varname, shapestr+"i4"))
-            elif m.group(1) == 's':
+            elif ttag == 's':
                 if shapestr:
                     raise ValueError("Cannot create string array column")
                 dtype.append((varname, h5py.special_dtype(vlen=str)))
-            elif m.group(1) == 't':
+            elif ttag == 't':
                 dtype.append((varname, shapestr+"i8"))
-            elif m.group(2) == 'v':
+            elif ttag == 'v':
                 dtype.append((varname, shapestr+"f8"))
-            elif m.group(2) == 'c':
+            elif ttag == 'c':
                 dtype.append((varname, shapestr+"c16"))
             else:
-                raise RuntimeError("Invalid type tag %s, but succesfully parsed as %s" % (ttag, m.groups()))
+                raise RuntimeError("Invalid type tag %s" % (ttag,))
 
         self.file.create_dataset("DataVault", (0,), dtype=dtype, maxshape=(None,))
         HDF5MetaData.initialize_info(self, title, indep, dep)
@@ -588,34 +678,47 @@ class ExtendedHDF5Data(HDF5MetaData):
         self.dataset.resize((old_rows + new_rows,))
         new_data = np.zeros((new_rows,), self.dataset.dtype)
         for idx,col in enumerate(data):
-            new_data['f%d'%idx,:] = col
+            column_name = 'f{}'.format(idx)
+            new_data[column_name] = col
         self.dataset[old_rows:(old_rows+new_rows)] = new_data
 
-    def addData(self, data):
+    def addData(self, data, transpose):
         """
         Adds one or more rows or data from a numpy struct array.
         """
-        new_rows = data.shape[0]
+        if transpose:
+            self.addDataTranspose(data)
+            return
+        new_rows = len(data)
         old_rows = self.dataset.shape[0]
         self.dataset.resize((old_rows + new_rows,))
         self.dataset[old_rows:(old_rows+new_rows)] = data
 
-    def getData(self, limit, start):
+    def getData(self, limit, start, transpose):
         """
         Get up to limit rows from a dataset.
         """
+        if transpose:
+            return self.getDataTranspose(limit, start)
+
+        data, new_pos = self._getData(limit, start)
+        row_data = [ tuple(row) for row in data ]
+        return row_data, new_pos
+
+    def getDataTranspose(self, limit, start):
+        struct_data, new_pos = self._getData(limit, start)
+        columns = []
+        for idx in range(len(struct_data.dtype)):
+            columns.append(struct_data['f%d'%idx])
+        columns = tuple(columns)
+        return columns, new_pos
+
+    def _getData(self, limit, start):
         if limit is None:
             struct_data = self.dataset[start:]
         else:
             struct_data = self.dataset[start:start+limit]
-        return struct_data, start+data.shape[0]
-
-    def getDataTranspose(self, limit, start):
-        struct_data, newPos = self.getData(limit, start)
-        columns = []
-        for idx in range(len(struct_data.dtype)):
-            columns.append(struct_data['f%d'%idx])
-        return columns, new_pos
+        return struct_data, start+struct_data.shape[0]
 
     def __len__(self):
         return self.dataset.shape[0]
@@ -634,8 +737,8 @@ class SimpleHDF5Data(HDF5MetaData):
     def __init__(self, fh):
         self._file = fh
         if 'Version' not in self.file.attrs:
-            self.file.attrs['Version'] = (1, 0, 0)
-        self.version = self.file.attrs['Version']
+            self.file.attrs['Version'] = np.asarray([2, 0, 0], dtype=np.int32)
+        self.version = np.asarray(self.file.attrs['Version'], dtype=np.int32)
 
     def initialize_info(self, title, indep, dep):
         ncol = len(indep)+len(dep)
@@ -651,10 +754,12 @@ class SimpleHDF5Data(HDF5MetaData):
     def dataset(self):
         return self.file["DataVault"]
 
-    def addData(self, data):
+    def addData(self, data, transpose):
         """
         Adds one or more rows or data from a 2D array of floats.
         """
+        if transpose:
+            raise RuntimeError("Transpose specified for simple data format: not supported")
         data = np.atleast_2d(np.asarray(data))
         new_rows = data.shape[0]
         old_rows = self.dataset.shape[0]
@@ -668,10 +773,12 @@ class SimpleHDF5Data(HDF5MetaData):
             new_data[field] = data[:,col]
         self.dataset[old_rows:(old_rows+new_rows)] = new_data
 
-    def getData(self, limit, start):
+    def getData(self, limit, start, transpose):
         """
         Get up to limit rows from a dataset.
         """
+        if transpose:
+            raise RuntimeError("Transpose specified for simple data format: not supported")
         if limit is None:
             struct_data = self.dataset[start:]
         else:
@@ -692,11 +799,12 @@ def open_hdf5_file(filename):
     """Factory for HDF5 files.  
 
     We check the version of the file to construct the proper class.  Currently, only two
-    options exist: version 1.0.0 -> legacy format, 2.0.0 -> extended format
+    options exist: version 2.0.0 -> legacy format, 3.0.0 -> extended format.
+    Version 1 is reserved for CSV files.
     """
     fh = SelfClosingFile(h5py.File, open_args=(filename, 'a'))
-    version = self.file.attrs['Version']
-    if version[0] == 1:
+    version = fh().attrs['Version']
+    if version[0] == 2:
         return SimpleHDF5Data(fh)
     else:
         return ExtendedHDF5Data(fh)
@@ -727,7 +835,7 @@ def open_backend(filename):
             return CsvNumpyData(csv_file)
         else:
             return CsvListData(csv_file)
-    elif os.path.exists(hdf_file):
-        return open_hdf5_file(hdf_file)
+    elif os.path.exists(hdf5_file):
+        return open_hdf5_file(hdf5_file)
     else: # We should have already cehcked, this should not happen
         raise errors.DatasetNotFoundError(filename)
