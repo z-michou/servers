@@ -42,6 +42,7 @@ def test_create_dataset(dv):
         dv.add(row)
 
     stored = dv.get()
+    assert dv.get_version() == "2.0.0"
     assert np.equal(data, stored).all()
 
 def test_create_extended_dataset(dv):
@@ -83,6 +84,8 @@ def test_create_extended_dataset(dv):
     row_type = dv.row_type()
     tt = T.parseTypeTag(row_type)
     assert tt == T.parseTypeTag('*(v[ns]*2c,ii)')
+
+    assert dv.get_version() == "3.0.0"
 
     stored = dv.get_ex()
     for j in range(4):
