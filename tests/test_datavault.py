@@ -53,18 +53,18 @@ def test_create_extended_dataset(dv):
                               ('clicks', 'Q', [1], 'i', '')])
 
     t_data = 3.3
-    x = np.eye(2)*3.2+1.5j
+    x = np.array([[3.2+4j, 1.0],[15.8+11j, 2j]])
     I = 3
     Q = 7
     row  = (t_data, x, I, Q)
-    dv.add_ex([row])
     dv.add_ex([row, row])
+    dv.add_ex_t(([3.3, 3.3], np.array([x, x]), [3,3], [7,7]))
     
     dv.add_parameter('foo', 32.1)
     dv.add_parameter('bar', 'x')
     dv.add_parameter('baz', [1, 2, 3, 4])
 
-
+    dv.open(_name)
     (indep_ex, dep_ex) = dv.variables_ex()
     assert len(indep_ex) == 2
     assert indep_ex[0] == ('t', [1], 'v', 'ns')
@@ -89,9 +89,14 @@ def test_create_extended_dataset(dv):
 
     stored = dv.get_ex()
     for j in range(4):
-        for k in range(3):
+        for k in range(4):
             assert np.all(stored[k][j] == row[j])
 
+    stored = dv.get_ex_t(100, True)
+    for j in range(4):
+        for j in range(4):
+            assert np.all(stored[j][k] == row[j])
+    
 def test_read_dataset():
     """Create a simple dataset and read it back while still open and after closed"""
     data = []
