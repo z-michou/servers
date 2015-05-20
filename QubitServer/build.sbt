@@ -4,9 +4,9 @@ name := "QubitServer"
 
 version := "0.6.0"
 
-resolvers += "bintray" at "http://jcenter.bintray.com/"
+scalaVersion := "2.11.6"
 
-crossPaths := false // don't add scala version suffix to jars
+resolvers += "bintray" at "http://jcenter.bintray.com/"
 
 libraryDependencies ++= Seq(
   "org.labrad" % "jlabrad" % "0.2.0-M1"
