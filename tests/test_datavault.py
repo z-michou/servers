@@ -45,10 +45,19 @@ def test_create_dataset(dv):
     assert dv.get_version() == "2.0.0"
     assert np.equal(data, stored).all()
 
+def test_string_type(dv):
+    _path, _name = dv.new_ex('test', [('label', [1], 's', '')],
+                             [('data', 'data', [1], 's', '')])
+    dv.add_ex([('label', 'data')])
+    stored = dv.get_ex()
+    assert stored[0][0] == 'label'
+    assert stored[0][1] == 'data'
+    stored = dv.get_ex_t()
+    
 def test_create_extended_dataset(dv):
     """Create an extended dataset, add some data and read it back"""
     _path, _name = dv.new_ex('test', [('t', [1], 'v', 'ns'),
-                                      ('x', [2,2], 'c', 'V')], 
+                                      ('x', [2,2], 'c', 'V')],
                              [('clicks', 'I', [1], 'i', ''),
                               ('clicks', 'Q', [1], 'i', '')])
 
