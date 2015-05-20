@@ -44,6 +44,51 @@ def test_create_dataset(dv):
     stored = dv.get()
     assert np.equal(data, stored).all()
 
+def test_create_extended_dataset(dv):
+    """Create an extended dataset, add some data and read it back"""
+    _path, _name = dv.new_ex('test', [('t', [1], 'v', 'ns'),
+                                      ('x', [2,2], 'c', 'V')], 
+                             [('clicks', 'I', [1], 'i', ''),
+                              ('clicks', 'Q', [1], 'i', '')])
+
+    t_data = 3.3
+    x = np.eye(2)*3.2+1.5j
+    I = 3
+    Q = 7
+    row  = (t_data, x, I, Q)
+    dv.add_ex([row])
+    dv.add_ex([row, row])
+    
+    dv.add_parameter('foo', 32.1)
+    dv.add_parameter('bar', 'x')
+    dv.add_parameter('baz', [1, 2, 3, 4])
+
+
+    (indep_ex, dep_ex) = dv.variables_ex()
+    assert len(indep_ex) == 2
+    assert indep_ex[0] == ('t', [1], 'v', 'ns')
+    assert indep_ex[1][0] == 'x'
+    assert np.all(indep_ex[1][1] == [2,2])
+    assert indep_ex[1][2:4] == ('c', 'V')
+    assert len(dep_ex) == 2
+    assert dep_ex[0] == ('clicks', 'I', [1], 'i', '')
+    assert dep_ex[1] == ('clicks', 'Q', [1], 'i', '')
+    
+    (indep, dep) = dv.variables()
+    assert indep[0] == ('t', 'ns')
+    assert indep[1] == ('x', 'V')
+    assert dep[0] == ('clicks', 'I', '')
+    assert dep[1] == ('clicks', 'Q', '')
+
+    row_type = dv.row_type()
+    tt = T.parseTypeTag(row_type)
+    assert tt == T.parseTypeTag('*(v[ns]*2c,ii)')
+
+    stored = dv.get_ex()
+    for j in range(4):
+        for k in range(3):
+            assert np.all(stored[k][j] == row[j])
+
 def test_read_dataset():
     """Create a simple dataset and read it back while still open and after closed"""
     data = []
